@@ -30,6 +30,7 @@ tokenizers>=0.13.0
 
 # Explainability
 shap>=0.42.0
+interpret>=0.4.2
 
 # Environment and configuration
 python-dotenv==1.0.0

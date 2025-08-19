@@ -1,0 +1,197 @@
+EBM MODEL GLOBAL EXPLANATION REPORT
+==================================================
+
+FEATURE IMPORTANCE RANKING:
+------------------------------
+
+ 1. Feature 0008
+    Importance Score: 0.3800
+
+ 2. Feature 0001
+    Importance Score: 0.3703
+
+ 3. Feature 0025
+    Importance Score: 0.2470
+
+ 4. Feature 0004
+    Importance Score: 0.2452
+
+ 5. Feature 0024
+    Importance Score: 0.2432
+
+ 6. Feature 0014
+    Importance Score: 0.2323
+
+ 7. Feature 0007
+    Importance Score: 0.1842
+
+ 8. Feature 0022
+    Importance Score: 0.1685
+
+ 9. Feature 0011 & Feature 0025
+    Importance Score: 0.1431
+
+10. Feature 0006
+    Importance Score: 0.1416
+
+11. Feature 0002
+    Importance Score: 0.1396
+
+12. Feature 0013
+    Importance Score: 0.1354
+
+13. Feature 0016
+    Importance Score: 0.1348
+
+14. Feature 0002 & Feature 0008
+    Importance Score: 0.1028
+
+15. Feature 0001 & Feature 0013
+    Importance Score: 0.0999
+
+16. Feature 0009 & Feature 0021
+    Importance Score: 0.0990
+
+17. Feature 0021
+    Importance Score: 0.0956
+
+18. Feature 0011
+    Importance Score: 0.0872
+
+19. Feature 0020
+    Importance Score: 0.0803
+
+20. Feature 0027
+    Importance Score: 0.0760
+
+21. Feature 0024 & Feature 0026
+    Importance Score: 0.0742
+
+22. Feature 0014 & Feature 0024
+    Importance Score: 0.0724
+
+23. Feature 0009 & Feature 0024
+    Importance Score: 0.0720
+
+24. Feature 0002 & Feature 0004
+    Importance Score: 0.0706
+
+25. Feature 0005 & Feature 0011
+    Importance Score: 0.0696
+
+26. Feature 0017
+    Importance Score: 0.0675
+
+27. Feature 0009
+    Importance Score: 0.0659
+
+28. Feature 0031
+    Importance Score: 0.0639
+
+29. Feature 0010
+    Importance Score: 0.0615
+
+30. Feature 0018
+    Importance Score: 0.0614
+
+31. Feature 0005
+    Importance Score: 0.0599
+
+32. Feature 0000
+    Importance Score: 0.0564
+
+33. Feature 0001 & Feature 0014
+    Importance Score: 0.0554
+
+34. Feature 0005 & Feature 0017
+    Importance Score: 0.0548
+
+35. Feature 0007 & Feature 0030
+    Importance Score: 0.0522
+
+36. Feature 0005 & Feature 0014
+    Importance Score: 0.0468
+
+37. Feature 0002 & Feature 0020
+    Importance Score: 0.0467
+
+38. Feature 0008 & Feature 0033
+    Importance Score: 0.0444
+
+39. Feature 0018 & Feature 0024
+    Importance Score: 0.0413
+
+40. Feature 0026
+    Importance Score: 0.0412
+
+41. Feature 0007 & Feature 0031
+    Importance Score: 0.0397
+
+42. Feature 0009 & Feature 0014
+    Importance Score: 0.0396
+
+43. Feature 0011 & Feature 0028
+    Importance Score: 0.0366
+
+44. Feature 0019
+    Importance Score: 0.0361
+
+45. Feature 0009 & Feature 0019
+    Importance Score: 0.0355
+
+46. Feature 0015 & Feature 0024
+    Importance Score: 0.0354
+
+47. Feature 0006 & Feature 0030
+    Importance Score: 0.0342
+
+48. Feature 0023
+    Importance Score: 0.0339
+
+49. Feature 0008 & Feature 0028
+    Importance Score: 0.0337
+
+50. Feature 0030
+    Importance Score: 0.0330
+
+51. Feature 0003
+    Importance Score: 0.0326
+
+52. Feature 0015 & Feature 0030
+    Importance Score: 0.0324
+
+53. Feature 0022 & Feature 0031
+    Importance Score: 0.0306
+
+54. Feature 0022 & Feature 0030
+    Importance Score: 0.0292
+
+55. Feature 0011 & Feature 0033
+    Importance Score: 0.0280
+
+56. Feature 0000 & Feature 0033
+    Importance Score: 0.0266
+
+57. Feature 0000 & Feature 0028
+    Importance Score: 0.0256
+
+58. Feature 0028
+    Importance Score: 0.0241
+
+59. Feature 0005 & Feature 0009
+    Importance Score: 0.0221
+
+60. Feature 0033
+    Importance Score: 0.0212
+
+61. Feature 0015
+    Importance Score: 0.0199
+
+62. Feature 0032
+    Importance Score: 0.0153
+
+63. Feature 0029
+    Importance Score: 0.0146
+
+64. Feature 0012
+    Importance Score: 0.0085

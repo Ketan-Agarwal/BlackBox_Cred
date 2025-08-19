@@ -125,9 +125,44 @@ class ExplainabilityService:
         else:
             z_interpretation = "High bankruptcy risk"
         
-        # Create feature contributions from SHAP values
+        # Create feature contributions from SHAP values or EBM explanations
         feature_contributions = []
-        if structured_result['shap_values'] and structured_result['feature_names']:
+        model_type = structured_result.get('model_type', 'RandomForest')
+        
+        if model_type == 'EBM' and structured_result.get('feature_contributions'):
+            # EBM explanations
+            ebm_contributions = structured_result['feature_contributions']
+            feature_names = structured_result['feature_names']
+            feature_values = structured_result['feature_values']
+            
+            # Create list of contributions and sort by absolute value
+            contributions = [
+                {
+                    'feature_name': name,
+                    'value': value,
+                    'contribution': contrib
+                }
+                for name, value, contrib in zip(feature_names, feature_values, ebm_contributions)
+            ]
+            
+            # Sort by absolute contribution and take top 5
+            contributions.sort(key=lambda x: abs(x['contribution']), reverse=True)
+            
+            for i, contrib in enumerate(contributions[:5]):
+                # Convert feature name to human-readable format
+                readable_name = self._make_feature_readable(contrib['feature_name'])
+                
+                feature_contributions.append(
+                    FeatureContribution(
+                        feature_name=readable_name,
+                        value=contrib['value'],
+                        contribution=contrib['contribution'],
+                        importance_rank=i + 1
+                    )
+                )
+                
+        elif structured_result['shap_values'] and structured_result['feature_names']:
+            # SHAP values (legacy Random Forest)
             shap_values = structured_result['shap_values']
             feature_names = structured_result['feature_names']
             feature_values = structured_result['feature_values']
@@ -146,9 +181,11 @@ class ExplainabilityService:
             contributions.sort(key=lambda x: abs(x['contribution']), reverse=True)
             
             for i, contrib in enumerate(contributions[:5]):
+                readable_name = self._make_feature_readable(contrib['feature_name'])
+                
                 feature_contributions.append(
                     FeatureContribution(
-                        feature_name=contrib['feature_name'],
+                        feature_name=readable_name,
                         value=contrib['value'],
                         contribution=contrib['contribution'],
                         importance_rank=i + 1
@@ -182,6 +219,42 @@ class ExplainabilityService:
             z_score_interpretation=z_interpretation,
             top_feature_contributions=feature_contributions
         )
+
+    def _make_feature_readable(self, feature_name: str) -> str:
+        """
+        Convert technical feature names to human-readable format.
+        
+        Args:
+            feature_name: Technical feature name
+            
+        Returns:
+            Human-readable feature name
+        """
+        feature_mappings = {
+            'Current Ratio': 'Current Ratio',
+            'Debt/Equity Ratio': 'Debt-to-Equity Ratio',
+            'Gross Margin': 'Gross Profit Margin',
+            'Operating Margin': 'Operating Profit Margin',
+            'EBIT Margin': 'EBIT Margin',
+            'EBITDA Margin': 'EBITDA Margin',
+            'Net Profit Margin': 'Net Profit Margin',
+            'Asset Turnover': 'Asset Turnover Ratio',
+            'ROE - Return On Equity': 'Return on Equity',
+            'ROA - Return On Assets': 'Return on Assets',
+            'altman_z_score': 'Altman Z-Score',
+            'kmv_distance_to_default': 'KMV Distance-to-Default',
+            'current_ratio': 'Current Ratio',
+            'quick_ratio': 'Quick Ratio',
+            'debt_to_equity': 'Debt-to-Equity Ratio',
+            'return_on_equity': 'Return on Equity',
+            'return_on_assets': 'Return on Assets',
+            'operating_margin': 'Operating Margin',
+            'net_margin': 'Net Profit Margin',
+            'asset_turnover': 'Asset Turnover',
+            'inventory_turnover': 'Inventory Turnover'
+        }
+        
+        return feature_mappings.get(feature_name, feature_name)
     
     def _create_unstructured_explanation(self, unstructured_result: Dict) -> UnstructuredModelExplanation:
         """
