@@ -125,7 +125,7 @@ def generate_comprehensive_explainability_report(
                     # --- IMPROVED POINT IMPACT DESCRIPTION ---
                     # The formula calculates impact relative to the structured component score's magnitude
                     # and the fusion weight. The description should reflect this.
-                    points_impact_on_structured = alpha * structured_component_score * contrib_percentage
+                    points_impact_on_structured = structured_component_score * contrib_percentage
                     points_impact_on_final = struct_weight_for_points * points_impact_on_structured
 
                     lines.append(f"   {i}. {feat['feature']} (Value: {feat['formatted_value']})")
