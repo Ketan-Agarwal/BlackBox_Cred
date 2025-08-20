@@ -10,7 +10,7 @@ from data_processing import process_collected_data
 from structured_analysis import compute_structured_score
 from unstructured_analysis import compute_unstructured_score
 from fusion_engine import fuse_scores
-from explainability import explain_structured_score, explain_unstructured_score, explain_fusion
+from explainability import explain_structured_score, explain_unstructured_score, explain_fusion, generate_comprehensive_explainability_report
 import datetime
 import logging
 
@@ -91,6 +91,18 @@ def run_credit_pipeline(company_name, ticker, rating_date, fred_api_key=None, da
     
     logger.info(f"Pipeline complete! Final Score: {final_score:.1f}, Grade: {credit_grade}")
     
+    # Generate comprehensive explainability report (teammate's format integrated)
+    comprehensive_report = generate_comprehensive_explainability_report(
+        company_name=company_name,
+        final_score=final_score,
+        credit_grade=credit_grade,
+        structured_result=structured_assessment,
+        unstructured_result=unstructured_assessment,
+        fusion_result=fusion_result,
+        market_conditions=market_conditions,
+        structured_features=struct_features
+    )
+    
     return {
         'company': company_name,
         'ticker': ticker,
@@ -104,6 +116,7 @@ def run_credit_pipeline(company_name, ticker, rating_date, fred_api_key=None, da
             'unstructured': unstruct_expl,
             'fusion': fusion_expl
         },
+        'comprehensive_report': comprehensive_report,  # Add the new comprehensive report
         'details': {
             'collected_data_summary': {
                 'yahoo_finance': 'Available' if collected_data.get('yahoo_finance_data') is not None else 'Missing',
@@ -241,3 +254,11 @@ if __name__ == "__main__":
                 print(f"  {line}")
     
     print("\n" + "="*60)
+    
+    # Display the comprehensive explainability report
+    if 'comprehensive_report' in result:
+        print("\n" + "="*60)
+        print("COMPREHENSIVE EXPLAINABILITY REPORT")
+        print("="*60)
+        print(result['comprehensive_report'])
+        print("="*60)
