@@ -173,22 +173,50 @@ def _determine_market_regime(macro_features):
     except:
         return 'NORMAL'
 
-def _score_to_credit_grade(risk_score):
-    """Convert risk score to credit grade (lower risk = higher grade)"""
-    if risk_score <= 15:
+def _score_to_credit_grade(final_score):
+
+    """Convert score to S&P-like credit grade (higher score = higher grade)"""
+    
+    if final_score >= 95:
         return 'AAA'
-    elif risk_score <= 25:
+    elif final_score >= 90:
+        return 'AA+'
+    elif final_score >= 85:
         return 'AA'
-    elif risk_score <= 35:
+    elif final_score >= 80:
+        return 'AA-'
+    elif final_score >= 75:
+        return 'A+'
+    elif final_score >= 70:
         return 'A'
-    elif risk_score <= 45:
+    elif final_score >= 65:
+        return 'A-'
+    elif final_score >= 60:
+        return 'BBB+'
+    elif final_score >= 55:
         return 'BBB'
-    elif risk_score <= 55:
+    elif final_score >= 50:
+        return 'BBB-'
+    elif final_score >= 45:
+        return 'BB+'
+    elif final_score >= 40:
         return 'BB'
-    elif risk_score <= 65:
+    elif final_score >= 35:
+        return 'BB-'
+    elif final_score >= 30:
+        return 'B+'
+    elif final_score >= 25:
         return 'B'
-    elif risk_score <= 75:
+    elif final_score >= 20:
+        return 'B-'
+    elif final_score >= 15:
+        return 'CCC+'
+    elif final_score >= 10:
         return 'CCC'
+    elif final_score >= 5:
+        return 'CCC-'
+    elif final_score >= 1:
+        return 'CC'
     else:
         return 'D'
 

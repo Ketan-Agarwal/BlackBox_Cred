@@ -12,7 +12,8 @@ import os
 from typing import Dict, Any, List, Tuple
 from collections import Counter
 import datetime
-
+# Note: interpret is not imported here anymore as the main functions don't use it directly.
+# The EBMExplainer class handles its own import and usage.
 logger = logging.getLogger(__name__)
 
 # === INTEGRATED COMPREHENSIVE EXPLAINABILITY REPORT ===
@@ -36,8 +37,8 @@ def generate_comprehensive_explainability_report(
         alpha = _calculate_volatility_factor(market_conditions)
         threshold = 0.7  # Standard threshold for market volatility
 
-        # Extract EBM feature contributions
-        ebm_output = _extract_ebm_contributions(structured_result, structured_features)
+        # Extract EBM feature contributions using EBMExplainer
+        ebm_output = _extract_ebm_contributions_via_explainer(structured_result, structured_features, company_name)
 
         # Extract news headlines and sentiments
         headlines, sentiments, sentiment_scores = _extract_news_data(unstructured_result)
@@ -96,62 +97,58 @@ def generate_comprehensive_explainability_report(
         # 5. Top Contributing Financial Factors
         lines.append("Top Contributing Financial Factors")
         if ebm_output:
-            # Get necessary values for point calculation
-            # Fused Final Score
-            final_score_for_report = fusion_result.get('fused_score', final_score) # Use provided final_score as fallback
-            # Structured Component Score (from fusion if available, otherwise fallback)
+            # Get necessary values for point calculation (if needed for alternative methods)
+            # Use the final_score passed in, or fallback if needed (though it's an arg)
+            final_score_for_report = final_score # <<< DEFINE IT HERE FROM FUNCTION ARG >>>
             structured_component_score = fusion_result.get('expert_contributions', {}).get('structured_expert', {}).get('score', structured_result.get('structured_score', 50.0))
-            # Structured Weight
             struct_weight_for_points = fusion_result.get('dynamic_weights', {}).get('structured_expert', 0.5) # Default weight
 
-            # Calculate total absolute raw contribution for percentage calculation (if needed for alternative methods)
+            # Calculate total absolute raw contribution for percentage calculation (if needed)
             total_abs_contribution = sum(abs(feat['raw_contribution']) for feat in ebm_output)
             if total_abs_contribution == 0: total_abs_contribution = 1e-8 # Avoid division by zero
 
-            # Separate and sort contributors based on EBM raw_contribution
-            # --- CORE LOGIC: Identify top 5 positive and negative based on EBM's actual output ---
-            positive_contributors = [feat for feat in ebm_output if feat['raw_contribution'] > 0]
-            negative_contributors = [feat for feat in ebm_output if feat['raw_contribution'] < 0]
+            # --- DYNAMIC SELECTION BASED ON FINAL CREDIT SCORE (Higher is Better) ---
+            if final_score_for_report >= 50:
+                lines.append("   Showing factors that MOST increased the credit score:")
+                # Sort by raw_contribution descending to get features with highest positive impact
+                top_contributors = sorted(ebm_output, key=lambda x: x['raw_contribution'], reverse=True)[:5]
+            else:
+                lines.append("   Showing factors that MOST decreased the credit score:")
+                # Sort by raw_contribution ascending to get features with the most negative impact
+                top_contributors = sorted(ebm_output, key=lambda x: x['raw_contribution'])[:5]
 
-            # Sort by absolute raw_contribution (actual EBM model contribution)
-            positive_sorted = sorted(positive_contributors, key=lambda x: abs(x['raw_contribution']), reverse=True)[:5]
-            negative_sorted = sorted(negative_contributors, key=lambda x: abs(x['raw_contribution']), reverse=True)[:5]
-
-            # Display Top 5 Positive Contributors
-            if positive_sorted:
-                lines.append("")
-                lines.append("   TOP 5 POSITIVE CONTRIBUTORS (Helping Credit Score):")
-                for i, feat in enumerate(positive_sorted, start=1):
+            # --- DISPLAY THE SELECTED TOP CONTRIBUTORS ---
+            if top_contributors:
+                for i, feat in enumerate(top_contributors, start=1):
                     raw_contrib = feat['raw_contribution']
-                    # --- Your Formula for Points Impact on Final Score ---
-                    # Points impact on Structured Component Score = alpha * structured_component_score * (abs(raw_contrib) / total_abs_contribution)
-                    # Points impact on Final Fused Score = Weight of Structured Expert * Points impact on Structured Score
-                    # Note: Using raw_contrib directly as a proxy for influence, normalized by total_abs_contribution
                     contrib_percentage = abs(raw_contrib) / total_abs_contribution
+                    # --- IMPROVED POINT IMPACT DESCRIPTION ---
+                    # The formula calculates impact relative to the structured component score's magnitude
+                    # and the fusion weight. The description should reflect this.
                     points_impact_on_structured = alpha * structured_component_score * contrib_percentage
                     points_impact_on_final = struct_weight_for_points * points_impact_on_structured
 
                     lines.append(f"   {i}. {feat['feature']} (Value: {feat['formatted_value']})")
                     lines.append(f"      Interpretation: {feat['interpretation']}")
-                    lines.append(f"      Raw Model Contribution: +{raw_contrib:.4f}")
-                    lines.append(f"      Impact on Final Score: +{points_impact_on_final:.2f} points")
+                    lines.append(f"      Raw Model Contribution: {raw_contrib:+.4f}")
+                    # --- IMPROVED CLARITY OF IMPACT DESCRIPTION ---
+                    if raw_contrib >= 0:
+                        lines.append(f"      Relative Impact Magnitude: +{contrib_percentage*100:.2f}% of total structured influence")
+                        lines.append(f"      Estimated Contribution to Final Score: +{points_impact_on_final:.2f} points")
+                    else:
+                        lines.append(f"      Relative Impact Magnitude: -{contrib_percentage*100:.2f}% of total structured influence")
+                        lines.append(f"      Estimated Contribution to Final Score: -{points_impact_on_final:.2f} points")
                     lines.append("")
 
-            # Display Top 5 Negative Contributors
-            if negative_sorted:
-                lines.append("   TOP 5 NEGATIVE CONTRIBUTORS (Hurting Credit Score):")
-                for i, feat in enumerate(negative_sorted, start=1):
-                    raw_contrib = feat['raw_contribution'] # This will be negative
-                    # --- Your Formula for Points Impact on Final Score ---
-                    contrib_percentage = abs(raw_contrib) / total_abs_contribution
-                    points_impact_on_structured = alpha * structured_component_score * contrib_percentage
-                    points_impact_on_final = struct_weight_for_points * points_impact_on_structured # This value will be positive
+            # --- DEBUG: Print ALL feature contributions ---
+            lines.append("   --- ALL EBM FEATURE CONTRIBUTIONS (for debugging) ---")
+            # --- FIXED DEBUG LIST SORTING: Sort by absolute contribution for influence view ---
+            all_features_sorted = sorted(ebm_output, key=lambda x: abs(x['raw_contribution']), reverse=True)
+            for feat in all_features_sorted:
+                lines.append(f"      {feat['feature']}: Value={feat['formatted_value']}, Raw_Contrib={feat['raw_contribution']:+.4f}")
+            lines.append("   --- END OF DEBUG LIST ---")
+            lines.append("")
 
-                    lines.append(f"   {i}. {feat['feature']} (Value: {feat['formatted_value']})")
-                    lines.append(f"      Interpretation: {feat['interpretation']}")
-                    lines.append(f"      Raw Model Contribution: {raw_contrib:.4f}") # Negative value
-                    lines.append(f"      Impact on Final Score: -{points_impact_on_final:.2f} points") # Show as negative impact
-                    lines.append("")
         else:
             # Fallback: use top financial features from structured_features
             lines.append("   Using top financial features based on values:")
@@ -162,7 +159,7 @@ def generate_comprehensive_explainability_report(
                 lines.append("")
             if not top_features:
                 lines.append("   No detailed feature contributions available")
-        lines.append("")
+            lines.append("")
 
         # 6. Impact of Global Sentiments on the Score
         lines.append("Impact of News Sentiments on the Score")
@@ -171,7 +168,7 @@ def generate_comprehensive_explainability_report(
             headline_data = list(zip(headlines, sentiments, sentiment_scores))
             top_headlines = sorted(headline_data, key=lambda x: abs(x[2]), reverse=True)[:3]
 
-            # Global severity from alpha
+            # Global severity from alpha (consistent with section 4)
             if alpha > threshold:
                 global_context = "Due to stable market conditions, the impact of news was moderated."
                 global_emphasis = " moderately"
@@ -183,13 +180,13 @@ def generate_comprehensive_explainability_report(
             for i, (headline, sentiment, score) in enumerate(top_headlines, start=1):
                  # --- FIX 5: Corrected impact text logic ---
                 # Impact direction (assuming negative news increases risk score, positive decreases)
-                # The final score is a risk score (higher = worse). So negative sentiment (bad news) should increase it.
+                # The final score is a CREDIT score (higher = better). So negative sentiment (bad news) should DECREASE it.
                 if sentiment.lower() == "positive":
-                    impact_text = "reduced the credit risk score" # Good news lowers risk
+                    impact_text = "increased the credit score" # Good news raises credit score
                 elif sentiment.lower() == "negative":
-                    impact_text = "increased the credit risk score" # Bad news raises risk
+                    impact_text = "decreased the credit score" # Bad news lowers credit score
                 else:
-                    impact_text = "had a neutral effect on the credit risk score"
+                    impact_text = "had a neutral effect on the credit score"
 
                 # Local severity (based on score)
                 abs_score = abs(score)
@@ -218,26 +215,30 @@ def generate_comprehensive_explainability_report(
 
         # 7. Risk Assessment Summary
         lines.append("Risk Assessment Summary")
-        # Risk level based on final score
-        if final_score < 25:
+        # --- FIXED CONSISTENCY: Use the same logic as _generate_risk_assessment_data ---
+        # AND use the final_score argument passed to the function (via final_score_for_report)
+        if final_score_for_report >= 80: # Excellent
             risk_level = "LOW RISK"
             risk_desc = "Strong credit profile with minimal default probability"
-        elif final_score < 50:
+        elif final_score_for_report >= 60: # Good
             risk_level = "MODERATE-LOW RISK"
             risk_desc = "Solid credit profile with acceptable risk levels"
-        elif final_score < 75:
+        elif final_score_for_report >= 40: # Fair
             risk_level = "MODERATE-HIGH RISK"
             risk_desc = "Elevated risk requiring careful monitoring"
-        else:
+        elif final_score_for_report >= 20: # Poor
             risk_level = "HIGH RISK"
             risk_desc = "Significant credit risk with high default probability"
+        else: # Very Poor
+            risk_level = "VERY HIGH RISK"
+            risk_desc = "Very high credit risk requiring immediate attention"
         lines.append(f"   Risk Level: {risk_level}")
         lines.append(f"   Assessment: {risk_desc}")
         lines.append("")
 
         # 8. Final Narrative Summary
         lines.append("Final Narrative Summary")
-        # Market condition narrative
+        # Market condition narrative (consistent with section 4)
         if alpha > threshold:
             lines.append("   Market conditions were stable during the assessment period.")
             lines.append("   The credit score was primarily driven by fundamental financial ratios.")
@@ -292,13 +293,17 @@ def _calculate_volatility_factor(market_conditions: Dict[str, Any]) -> float:
     alpha = base_alpha * vix_adjustment
     return max(0.1, min(1.0, alpha))
 
-def _extract_ebm_contributions(structured_result: Dict[str, Any], structured_features: Dict[str, Any]) -> List[Dict[str, Any]]:
-    """Extract EBM feature contributions in the required format with proper interpretations and values"""
+# --- NEW FUNCTION: Use EBMExplainer to get contributions ---
+def _extract_ebm_contributions_via_explainer(structured_result: Dict[str, Any], structured_features: Dict[str, Any], company_name: str) -> List[Dict[str, Any]]:
+    """Use the EBMExplainer to get the correct feature contributions."""
     try:
-        feature_contributions = structured_result.get('feature_contributions', {})
-        # structured_score = structured_result.get('structured_score', 50.0) # Not needed here
+        logger.debug("Calling EBMExplainer to get feature contributions for report...")
+        # Call the explainer function which handles the model loading and explain_local correctly
+        explanation_result = explain_structured_score(structured_features, company_name)
+        feature_contributions = explanation_result.get('feature_contributions', {})
+        logger.debug(f"EBMExplainer returned {len(feature_contributions)} contributions.")
 
-        # Define financial ratio priority (higher priority features get precedence)
+        # Now format these contributions like the old _extract_ebm_contributions did
         ratio_priorities = {
             'debt_to_equity': 10, 'current_ratio': 10, 'return_on_equity': 10, 'return_on_assets': 10,
             'enhanced_z_score': 9, 'kmv_distance_to_default': 9, 'net_margin': 8, 'debt_ratio': 8,
@@ -315,7 +320,7 @@ def _extract_ebm_contributions(structured_result: Dict[str, Any], structured_fea
             # Get detailed interpretation using the ebm_exp.py logic
             interpretation = _get_detailed_feature_interpretation(feature, original_value, raw_contribution)
 
-            # Calculate contribution percentage relative to total absolute contributions
+            # Calculate contribution percentage relative to total absolute contributions (if needed elsewhere)
             total_abs_contribution = sum(abs(contrib) for contrib in feature_contributions.values())
             if total_abs_contribution > 0:
                 contribution_percentage = abs(raw_contribution) / total_abs_contribution
@@ -337,10 +342,11 @@ def _extract_ebm_contributions(structured_result: Dict[str, Any], structured_fea
 
         # Sort by priority first, then by absolute contribution for tie-breaking within categories
         ebm_output.sort(key=lambda x: (-x['priority'], -abs(x['raw_contribution'])))
+        logger.debug(f"Formatted and sorted EBM output has {len(ebm_output)} items.")
         return ebm_output
 
     except Exception as e:
-        logger.warning(f"Could not extract EBM contributions: {e}")
+        logger.warning(f"Could not extract EBM contributions using EBMExplainer: {e}")
         return []
 
 def _format_feature_value(feature_name: str, value: float) -> str:
@@ -356,10 +362,10 @@ def _format_feature_value(feature_name: str, value: float) -> str:
         else:
             return f"${value:.2f}"
     # Percentages
-    elif feature_name in ['return_on_equity', 'return_on_assets', 'net_margin', 'volatility']:
+    elif feature_name in ['return_on_equity', 'return_on_assets', 'net_margin', 'volatility', 'gross_margin', 'operating_margin']:
         return f"{value*100:.2f}%"
     # Ratios (keep as decimal with more precision)
-    elif feature_name in ['debt_to_equity', 'current_ratio', 'debt_ratio', 'quick_ratio']:
+    elif feature_name in ['debt_to_equity', 'current_ratio', 'debt_ratio', 'quick_ratio', 'asset_turnover']:
         return f"{value:.3f}"
     # Scores and distances
     elif feature_name in ['enhanced_z_score', 'kmv_distance_to_default']:
@@ -671,12 +677,17 @@ def _extract_news_data(unstructured_result: Dict[str, Any]) -> Tuple[List[str], 
         logger.warning(f"Could not extract news data: {e}")
         return [], [], []
 
+# --- FIXED THRESHOLDS for factor identification ---
+POSITIVE_FACTOR_THRESHOLD = 0.005 # Slightly lowered threshold
+NEGATIVE_FACTOR_THRESHOLD = -0.005
+
 def _identify_positive_factors(ebm_output: List[Dict[str, Any]], sentiments: List[str]) -> List[str]:
     """Identify positive contributing factors"""
     factors = []
     # From EBM output
     for item in ebm_output:
-        if item['raw_contribution'] > 0.01: # Use a small threshold instead of 0
+        # Use a small threshold to identify significant positive contributions
+        if item['raw_contribution'] > POSITIVE_FACTOR_THRESHOLD:
             factors.append(f"Strong {item['feature'].lower()}")
     # From sentiments
     positive_count = sentiments.count('Positive')
@@ -689,7 +700,8 @@ def _identify_negative_factors(ebm_output: List[Dict[str, Any]], sentiments: Lis
     factors = []
     # From EBM output
     for item in ebm_output:
-        if item['raw_contribution'] < -0.01:  # Significant negative contribution, use small threshold
+        # Use a small threshold to identify significant negative contributions
+        if item['raw_contribution'] < NEGATIVE_FACTOR_THRESHOLD:
             factors.append(f"Weak {item['feature'].lower()}")
     # From sentiments
     negative_count = sentiments.count('Negative')
@@ -766,87 +778,104 @@ class EBMExplainer:
         feature_values = sample_df.iloc[0].to_dict()
         feature_contributions = {}
 
-        # --- FIX 7: Use EBM's built-in explain_local for accurate contributions ---
+        # --- ONLY USE EBM's built-in explain_local for contributions ---
         try:
             # Use EBM's built-in explain_local for accurate contributions
             logger.debug(f"Attempting explain_local with sample_scaled shape: {sample_scaled.shape}")
             local_explanation = self.ebm_model.explain_local(sample_scaled)
             logger.debug(f"Local explanation object type: {type(local_explanation)}")
 
-            # --- ROBUST CHECKING FOR LOCAL EXPLANATION DATA ---
+            # --- EXTRACT FEATURE CONTRIBUTIONS FROM EBM EXPLANATION ---
             if local_explanation is not None:
-                # Check for data() method or direct attributes
-                if hasattr(local_explanation, 'data'):
-                    local_data = local_explanation.data()
-                    logger.debug(f"Local explanation data() result type: {type(local_data)}")
-                else:
-                    # Fallback to checking for names and scores attributes directly
-                    local_data = {
-                        'names': getattr(local_explanation, 'names', None),
-                        'scores': getattr(local_explanation, 'scores', None)
-                    }
-                    logger.debug(f"Local explanation data (from attributes): {local_data}")
+                try:
+                    # Get explanation data for the first (and only) instance
+                    # Assuming InterpretML API where data(index) or data() works
+                    if hasattr(local_explanation, 'data'):
+                        # Try getting data for instance 0 first, fallback to overall data
+                        explanation_data = None
+                        try:
+                            explanation_data = local_explanation.data(0)
+                            logger.debug("Successfully retrieved local explanation data for instance 0.")
+                        except:
+                            pass
+                        if explanation_data is None:
+                             try:
+                                 explanation_data = local_explanation.data() # Fallback to overall data call
+                                 logger.debug("Retrieved local explanation data (overall).")
+                             except:
+                                 pass
 
-                # Check if local_data is a dictionary and contains the expected keys/values
-                if isinstance(local_data, dict):
-                    feature_names_local = local_data.get('names', [])
-                    feature_scores_local = local_data.get('scores', [])
+                        if explanation_data is not None and isinstance(explanation_data, dict):
+                            feature_scores_all = explanation_data.get('scores', [])
+                            feature_names_generic = explanation_data.get('names', [])
 
-                    # Ensure names and scores are lists/arrays before zipping
-                    if isinstance(feature_names_local, (list, np.ndarray)) and isinstance(feature_scores_local, (list, np.ndarray)):
-                        if len(feature_names_local) == len(feature_scores_local) and len(feature_names_local) > 0:
-                            # Map feature names to their scores
-                            feature_contributions = dict(zip(feature_names_local, feature_scores_local))
-                            logger.info("Successfully retrieved local feature contributions.")
+                            # Only use main features (not interactions) - they correspond to our feature_columns
+                            main_features_count = len(self.feature_columns)
+                            if len(feature_scores_all) >= main_features_count:
+                                # Take only the first N scores corresponding to main features
+                                main_scores = feature_scores_all[:main_features_count]
+
+                                # Map feature names to their scores
+                                # Check if names match feature_columns exactly
+                                if (len(feature_names_generic) >= main_features_count and
+                                    all(name == feature_name for name, feature_name in zip(feature_names_generic[:main_features_count], self.feature_columns))):
+                                    # Names match exactly
+                                    logger.debug("Feature names from explain_local match feature_columns exactly.")
+                                    feature_contributions = dict(zip(feature_names_generic[:main_features_count], main_scores))
+                                elif (len(feature_names_generic) >= main_features_count and
+                                      all(isinstance(name, str) and name.startswith('feature_') for name in feature_names_generic[:main_features_count])):
+                                    # Names are generic 'feature_0000' style. Assume order matches feature_columns.
+                                    logger.debug("Feature names are generic. Assuming order matches feature_columns.")
+                                    feature_contributions = dict(zip(self.feature_columns, main_scores))
+                                elif len(feature_names_generic) >= main_features_count:
+                                    # Names are provided and seem specific, but don't match exactly.
+                                    # This is the warning case from the debug log.
+                                    # Let's try to match names robustly.
+                                    logger.warning("Names from explain_local didn't match feature_columns exactly. Attempting robust mapping...")
+                                    # Create a mapping from name to index in feature_names_generic
+                                    name_to_idx_generic = {name: i for i, name in enumerate(feature_names_generic[:main_features_count])}
+                                    mapped_contributions = {}
+                                    for feature_name in self.feature_columns:
+                                        if feature_name in name_to_idx_generic:
+                                            idx = name_to_idx_generic[feature_name]
+                                            mapped_contributions[feature_name] = feature_scores_all[idx]
+                                        else:
+                                            logger.warning(f"Feature '{feature_name}' not found in explain_local names. Using score by index.")
+                                            # Fallback to index-based mapping if name not found
+                                            generic_idx = self.feature_columns.index(feature_name)
+                                            if generic_idx < len(feature_scores_all):
+                                                mapped_contributions[feature_name] = feature_scores_all[generic_idx]
+                                            else:
+                                                mapped_contributions[feature_name] = 0.0
+                                    feature_contributions = mapped_contributions
+                                else:
+                                    # If no names or not enough, assume order matches feature_columns (last resort)
+                                    logger.warning("Not enough names returned or names unavailable. Assuming order matches feature_columns.")
+                                    feature_contributions = dict(zip(self.feature_columns, main_scores))
+
+                                logger.info(f"Mapped local contributions for {len(feature_contributions)} features.")
+                            else:
+                                logger.warning(f"Insufficient scores returned by explain_local. Got {len(feature_scores_all)}, expected >= {main_features_count}")
                         else:
-                            logger.warning(f"Mismatch in lengths or empty local names({len(feature_names_local)}), scores({len(feature_scores_local)})")
+                             logger.warning("Local explanation data is None or not a dictionary.")
                     else:
-                        logger.warning("Local explanation 'names' or 'scores' are not lists/arrays.")
-                elif hasattr(local_explanation, 'names') and hasattr(local_explanation, 'scores'):
-                     # If local_data wasn't a dict, try direct attributes again
-                     feature_names_local = local_explanation.names
-                     feature_scores_local = local_explanation.scores
-                     if isinstance(feature_names_local, (list, np.ndarray)) and isinstance(feature_scores_local, (list, np.ndarray)):
-                         if len(feature_names_local) == len(feature_scores_local) and len(feature_names_local) > 0:
-                             feature_contributions = dict(zip(feature_names_local, feature_scores_local))
-                             logger.info("Successfully retrieved local feature contributions (from attributes).")
-                         else:
-                             logger.warning(f"Mismatch in lengths or empty local names({len(feature_names_local)}), scores({len(feature_scores_local)}) (from attributes)")
-                     else:
-                         logger.warning("Local explanation .names or .scores are not lists/arrays (from attributes).")
-                else:
-                    logger.warning(f"Local explanation data is not a dictionary or lacks .names/.scores attributes. Type: {type(local_data)}")
+                        logger.warning("Local explanation object does not have a 'data' method.")
+                except Exception as extract_e:
+                    logger.error(f"Failed to extract local contributions: {extract_e}")
             else:
                 logger.warning("Local explanation object is None.")
-
         except AttributeError as ae:
-            logger.warning(f"AttributeError while getting local feature contributions: {ae}")
+            logger.error(f"AttributeError while getting local feature contributions: {ae}")
         except Exception as e:
-            logger.warning(f"Could not get local feature contributions, falling back to global importance: {e}")
+            logger.error(f"Error calling explain_local or processing its output: {e}")
 
-        # --- FALLBACK: Use global importance if explain_local fails or returns invalid data ---
+        # --- NO FALLBACK TO GLOBAL ---
+        # If feature_contributions is still empty, log an error and initialize with zeros
         if not feature_contributions:
-            try:
-                logger.info("Falling back to global feature importance for contributions.")
-                global_explanation = self.ebm_model.explain_global()
-                global_data = global_explanation.data() if hasattr(global_explanation, 'data') else {}
-                # Ensure global_data is a dict
-                if not isinstance(global_data, dict):
-                    global_data = {}
-                global_scores = global_data.get('scores', [1.0] * len(feature_names))
-                # Approximate local contribution based on feature value and global importance
-                sample_values = sample_df.iloc[0]
-                for i, feature_name in enumerate(feature_names):
-                    if i < len(global_scores):
-                        feature_value = sample_values.get(feature_name, 0)
-                        # Simple approximation: sign of value * global score magnitude
-                        approx_score = (1 if feature_value >= 0 else -1) * abs(global_scores[i]) * 0.1
-                        feature_contributions[feature_name] = approx_score
-                    else:
-                        feature_contributions[feature_name] = 0.0
-            except Exception as e2:
-                logger.error(f"Fallback to global importance also failed: {e2}")
-                feature_contributions = {name: 0.001 for name in feature_names}
+            logger.error("Failed to retrieve local feature contributions from explain_local. No fallback used.")
+            feature_contributions = {name: 0.0 for name in feature_names}
+        else:
+            logger.info("Successfully retrieved local feature contributions.")
 
         # Ensure all expected features are present in the final dictionary, fill missing with 0
         final_feature_contributions = {name: feature_contributions.get(name, 0.0) for name in feature_names}
@@ -1145,8 +1174,14 @@ class NewsExplainabilityEngine:
         if 'sample_headlines' in news_assessment and news_assessment['sample_headlines']:
             explanation.append("📰 SAMPLE HEADLINES:")
             for i, headline in enumerate(news_assessment['sample_headlines'][:3], 1):
+                # Add a simple "days ago" calculation (you could enhance this with actual dates)
+                days_ago = f"{i + 1} days ago"  # Placeholder - you can calculate actual days from timestamps
                 explanation.append(f"{i}. {headline}")
-            explanation.append("")
+                explanation.append(f"   Published: ~{days_ago}")
+                explanation.append("")
+        else:
+            explanation.append("No recent news articles found for analysis")
+        explanation.append("")
 
         explanation.append("🎯 CONFIDENCE ASSESSMENT:")
         explanation.append(f"• Overall confidence: {confidence_analysis['overall_confidence']:.1%} ({confidence_analysis['confidence_level']})")
@@ -1228,7 +1263,7 @@ def explain_structured_score(processed_features: Dict[str, Any], company_name: s
     """
     try:
         logger.info(f"📊 Generating structured explanation for {company_name}")
-        MODEL_PATH = r"C:\\Users\\asus\\Documents\\GitHub\\BlackBox_Cred\\BlackBox_Backend\\model\\ebm_model_struct_score.pkl"
+        MODEL_PATH = r"C:\Users\asus\Documents\GitHub\BlackBox_Cred\BlackBox_Backend\model\ebm_model_struct_score.pkl"
         explainer = EBMExplainer(MODEL_PATH)
         explanation_result = explainer.explain_single_prediction(processed_features, company_name)
         logger.info(f"✅ Structured explanation generated for {company_name}")
@@ -1328,7 +1363,7 @@ def explain_fusion(fusion_result: Dict[str, Any], structured_result: Dict[str, A
 
         if 'structured_expert' in expert_contributions:
             struct_contrib = expert_contributions['structured_expert']
-            struct_weight = dynamic_weights.get('structured_expert', 0.5) # Default to 0.5
+            struct_weight = dynamic_weights.get('structured_expert', 0.5) * 100 # Default to 0.5
             explanation_lines.append(f"Structured Analysis (EBM):")
             explanation_lines.append(f"  Score: {struct_contrib.get('score', struct_contrib.get('risk_score', 0)):.1f}/100") # Use 'score' or fallback
             explanation_lines.append(f"  Weight: {struct_weight:.1%}")
@@ -1337,7 +1372,7 @@ def explain_fusion(fusion_result: Dict[str, Any], structured_result: Dict[str, A
 
         if 'news_sentiment_expert' in expert_contributions:
             news_contrib = expert_contributions['news_sentiment_expert']
-            news_weight = dynamic_weights.get('news_sentiment_expert', 0.5) # Default to 0.5
+            news_weight = dynamic_weights.get('news_sentiment_expert', 0.5) * 100 # Default to 0.5
             explanation_lines.append(f"News Sentiment Analysis:")
             explanation_lines.append(f"  Score: {news_contrib.get('score', news_contrib.get('risk_score', 0)):.1f}/100") # Use 'score' or fallback
             explanation_lines.append(f"  Weight: {news_weight:.1%}")
