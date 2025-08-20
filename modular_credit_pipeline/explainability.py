@@ -4,6 +4,7 @@ explainability.py
 
 Comprehensive explainability module combining structured and unstructured explanations.
 Self-contained implementation without external dependencies.
+Includes integrated comprehensive explainability report generator.
 """
 
 import logging
@@ -16,6 +17,368 @@ from collections import Counter
 import datetime
 
 logger = logging.getLogger(__name__)
+
+# === INTEGRATED COMPREHENSIVE EXPLAINABILITY REPORT ===
+
+def generate_comprehensive_explainability_report(
+    company_name: str, 
+    final_score: float, 
+    credit_grade: str,
+    structured_result: Dict[str, Any],
+    unstructured_result: Dict[str, Any], 
+    fusion_result: Dict[str, Any],
+    market_conditions: Dict[str, Any],
+    structured_features: Dict[str, Any]
+) -> str:
+    """
+    Generate comprehensive explainability report integrating teammate's format 
+    with your existing pipeline data.
+    """
+    try:
+        # Extract key data for the report
+        alpha = _calculate_volatility_factor(market_conditions)
+        threshold = 0.7  # Standard threshold for market volatility
+        
+        # Extract EBM feature contributions
+        ebm_output = _extract_ebm_contributions(structured_result, structured_features)
+        
+        # Extract news headlines and sentiments
+        headlines, sentiments, sentiment_scores = _extract_news_data(unstructured_result)
+        
+        # Generate the comprehensive report
+        lines = []
+        lines.append(f"CREDIT RISK EXPLAINABILITY REPORT for {company_name}")
+        lines.append("="*60)
+        lines.append("")
+
+        # 1. Final Score
+        lines.append("Final Credit Assessment")
+        lines.append(f"   Overall Credit Score: {final_score:.1f}/100")
+        lines.append(f"   Credit Grade: {credit_grade}")
+        lines.append(f"   Assessment Date: {datetime.datetime.now().strftime('%Y-%m-%d')}")
+        lines.append("")
+
+        # 2. Data Sources
+        lines.append("Data Sources Used in Calculation")
+        lines.append("   - Financial Ratios & Structured Analysis (EBM)")
+        lines.append("   - News Sentiment Analysis (FinBERT)")
+        lines.append("   - Market Volatility & Economic Indicators")
+        lines.append("   - Dynamic Fusion Algorithm (MAESTRO)")
+        lines.append("")
+
+        # 3. Component Scores
+        structured_score = structured_result.get('structured_score', 50.0)
+        unstructured_score = unstructured_result.get('unstructured_score', 50.0)
+        
+        lines.append("Component Analysis")
+        lines.append(f"   Structured Analysis Score: {structured_score:.1f}/100")
+        lines.append(f"   Unstructured Analysis Score: {unstructured_score:.1f}/100")
+        
+        # Dynamic weights from fusion
+        dynamic_weights = fusion_result.get('dynamic_weights', {})
+        struct_weight = dynamic_weights.get('structured_expert', 0.6) * 100
+        news_weight = dynamic_weights.get('news_sentiment_expert', 0.4) * 100
+        
+        lines.append(f"   Structured Weight: {struct_weight:.1f}%")
+        lines.append(f"   News Sentiment Weight: {news_weight:.1f}%")
+        lines.append("")
+
+        # 4. Market Volatility Influence
+        lines.append("Market Volatility Influence")
+        market_regime = market_conditions.get('regime', 'NORMAL')
+        vix = market_conditions.get('vix', 20.0)
+        
+        if alpha > threshold:
+            lines.append(f"   → Market was STABLE (VIX: {vix:.1f}, Regime: {market_regime})")
+            lines.append("   → Financial fundamentals had higher influence on the score than news sentiments.")
+        else:
+            lines.append(f"   → Market was VOLATILE (VIX: {vix:.1f}, Regime: {market_regime})")
+            lines.append("   → News sentiment had stronger influence on the score than financial fundamentals.")
+        lines.append("")
+
+        # 5. Top Contributing Financial Factors
+        lines.append("Top Contributing Financial Factors")
+        
+        if ebm_output:
+            # Sort by absolute contribution
+            ebm_sorted = sorted(ebm_output, key=lambda x: abs(x['contribution']), reverse=True)[:5]
+            for i, feat in enumerate(ebm_sorted, start=1):
+                adjusted_contrib = feat['contribution'] * alpha
+                lines.append(f"   {i}. {feat['feature']} (Value: {feat['value']:.4f})")
+                lines.append(f"      Interpretation: {feat['interpretation']}")
+                lines.append(f"      Contribution: {adjusted_contrib:+.4f}")
+                lines.append("")
+        else:
+            lines.append("   No detailed feature contributions available")
+            lines.append("")
+        
+        # 6. Impact of Global Sentiments on the Score
+        lines.append("Impact of News Sentiments on the Score")
+
+        if headlines and sentiments and sentiment_scores:
+            # Pick Top 3 by sentiment score
+            headline_data = list(zip(headlines, sentiments, sentiment_scores))
+            top_headlines = sorted(headline_data, key=lambda x: abs(x[2]), reverse=True)[:3]
+
+            # Global severity from alpha 
+            if alpha > threshold:
+                global_context = "Due to stable market conditions, the impact of news was moderated.\n"
+                global_emphasis = " moderately"
+            else:
+                global_context = "In volatile market conditions, the impact of news was amplified.\n"
+                global_emphasis = " strongly"
+
+            lines.append(f"   {global_context}")
+
+            for i, (headline, sentiment, score) in enumerate(top_headlines, start=1):
+                # Impact direction
+                if sentiment.lower() == "positive":
+                    impact_text = "reduced the credit risk score"
+                elif sentiment.lower() == "negative":
+                    impact_text = "increased the credit risk score"
+                else:
+                    impact_text = "had a neutral effect on the credit risk score"
+                
+                # Local severity (based on score)
+                if abs(score) > 0.8:
+                    local_severity = "significantly (High Impact)"
+                elif abs(score) > 0.5:
+                    local_severity = "moderately (Moderate Impact)"
+                else:
+                    local_severity = "slightly (Low Impact)"
+                
+                # Combine global + local
+                if sentiment.lower() != "neutral":
+                    lines.append(
+                        f"   {i}. \"{headline[:80]}...\" had a {sentiment.lower()} sentiment, "
+                        f"which {impact_text}{global_emphasis} {local_severity}."
+                    )
+                else:
+                    lines.append(
+                        f"   {i}. \"{headline[:80]}...\" had neutral sentiment, "
+                        f"which {impact_text}{global_emphasis} {local_severity}."
+                    )
+                lines.append("")
+        else:
+            lines.append("   No news data available for sentiment analysis")
+            lines.append("")
+
+        # 7. Risk Assessment Summary
+        lines.append("Risk Assessment Summary")
+        
+        # Risk level based on final score
+        if final_score < 25:
+            risk_level = "LOW RISK"
+            risk_desc = "Strong credit profile with minimal default probability"
+        elif final_score < 50:
+            risk_level = "MODERATE-LOW RISK" 
+            risk_desc = "Solid credit profile with acceptable risk levels"
+        elif final_score < 75:
+            risk_level = "MODERATE-HIGH RISK"
+            risk_desc = "Elevated risk requiring careful monitoring"
+        else:
+            risk_level = "HIGH RISK"
+            risk_desc = "Significant credit risk with high default probability"
+        
+        lines.append(f"   Risk Level: {risk_level}")
+        lines.append(f"   Assessment: {risk_desc}")
+        lines.append("")
+
+        # 8. Final Narrative Summary
+        lines.append("Final Narrative Summary")
+        
+        # Market condition narrative
+        if alpha > threshold:
+            lines.append("   Market conditions were stable during the assessment period.")
+            lines.append("   The credit score was primarily driven by fundamental financial ratios.")
+        else:
+            lines.append("   Market conditions were volatile during the assessment period.")
+            lines.append("   Recent news headlines had stronger influence on the final score.")
+        
+        # Strength and risk identification
+        positive_factors = _identify_positive_factors(ebm_output, sentiments)
+        negative_factors = _identify_negative_factors(ebm_output, sentiments)
+        
+        if positive_factors:
+            lines.append(f"   Key strengths: {', '.join(positive_factors[:3])}")
+        if negative_factors:
+            lines.append(f"   Key risks: {', '.join(negative_factors[:3])}")
+        
+        lines.append("")
+        
+        # 9. Technical Details
+        lines.append("Technical Details")
+        lines.append(f"   Model: Explainable Boosting Machine (EBM)")
+        lines.append(f"   Sentiment Analysis: FinBERT")
+        lines.append(f"   Fusion Algorithm: MAESTRO Dynamic Weighting")
+        lines.append(f"   Articles Analyzed: {unstructured_result.get('articles_analyzed', 0)}")
+        lines.append(f"   Features Used: {structured_result.get('features_used', 0)}")
+        lines.append("")
+        
+        # Timestamp
+        lines.append(f"Report generated on: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        
+        return "\n".join(lines)
+        
+    except Exception as e:
+        logger.error(f"Error generating comprehensive explainability report: {e}")
+        return f"Error generating explainability report for {company_name}: {str(e)}"
+
+def _calculate_volatility_factor(market_conditions: Dict[str, Any]) -> float:
+    """Calculate volatility factor (alpha) from market conditions"""
+    vix = market_conditions.get('vix', 20.0)
+    regime = market_conditions.get('regime', 'NORMAL')
+    
+    # Higher alpha = more stable market (lower volatility)
+    # Lower alpha = more volatile market
+    if regime == 'CRISIS':
+        base_alpha = 0.3
+    elif regime == 'STRESS':
+        base_alpha = 0.5
+    else:  # NORMAL
+        base_alpha = 0.7
+    
+    # Adjust based on VIX (lower VIX = more stable = higher alpha)
+    vix_adjustment = max(0.1, min(1.0, (30 - vix) / 20))
+    
+    alpha = base_alpha * vix_adjustment
+    return max(0.1, min(1.0, alpha))
+
+def _extract_ebm_contributions(structured_result: Dict[str, Any], structured_features: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Extract EBM feature contributions in the required format"""
+    try:
+        feature_contributions = structured_result.get('feature_contributions', {})
+        
+        ebm_output = []
+        for feature, contribution in feature_contributions.items():
+            value = structured_features.get(feature, 0.0)
+            interpretation = _get_feature_interpretation(feature, value, contribution)
+            
+            ebm_output.append({
+                'feature': feature.replace('_', ' ').title(),
+                'value': float(value),
+                'contribution': float(contribution),
+                'interpretation': interpretation
+            })
+        
+        return ebm_output
+        
+    except Exception as e:
+        logger.warning(f"Could not extract EBM contributions: {e}")
+        return []
+
+def _get_feature_interpretation(feature_name: str, value: float, contribution: float) -> str:
+    """Get business interpretation for a feature"""
+    
+    # Basic interpretations (can be expanded)
+    interpretations = {
+        'debt_to_equity': {
+            'low': "excellent capital structure with low leverage",
+            'medium': "good capital structure with moderate leverage", 
+            'high': "concerning leverage levels increasing risk"
+        },
+        'current_ratio': {
+            'low': "liquidity concerns for short-term obligations",
+            'medium': "adequate liquidity with reasonable safety buffer",
+            'high': "strong liquidity position"
+        },
+        'return_on_equity': {
+            'low': "below-average profitability performance",
+            'medium': "acceptable profitability within industry norms",
+            'high': "strong profitability indicating efficient operations"
+        }
+    }
+    
+    feature_key = feature_name.lower()
+    
+    if feature_key in interpretations:
+        if value < 0.5:
+            level = 'low'
+        elif value < 1.5:
+            level = 'medium'
+        else:
+            level = 'high'
+        
+        return interpretations[feature_key][level]
+    else:
+        # Generic interpretation based on contribution
+        if contribution > 0:
+            return "factor contributing positively to credit assessment"
+        elif contribution < 0:
+            return "factor indicating increased credit risk"
+        else:
+            return "neutral factor with minimal impact"
+
+def _extract_news_data(unstructured_result: Dict[str, Any]) -> tuple:
+    """Extract news headlines, sentiments, and scores"""
+    try:
+        sample_headlines = unstructured_result.get('sample_headlines', [])
+        sentiment_dist = unstructured_result.get('sentiment_distribution', {})
+        
+        headlines = []
+        sentiments = []
+        sentiment_scores = []
+        
+        # Generate sample data from available information
+        for i, headline in enumerate(sample_headlines[:3]):
+            headlines.append(headline)
+            
+            # Assign sentiment based on distribution (simplified)
+            total_articles = sum(sentiment_dist.values())
+            if total_articles > 0:
+                neg_ratio = sentiment_dist.get('negative', 0) / total_articles
+                pos_ratio = sentiment_dist.get('positive', 0) / total_articles
+                
+                if i == 0 and neg_ratio > 0.4:
+                    sentiments.append('Negative')
+                    sentiment_scores.append(-0.7)
+                elif i == 1 and pos_ratio > 0.4:
+                    sentiments.append('Positive')
+                    sentiment_scores.append(0.6)
+                else:
+                    sentiments.append('Neutral')
+                    sentiment_scores.append(0.2)
+            else:
+                sentiments.append('Neutral')
+                sentiment_scores.append(0.0)
+        
+        return headlines, sentiments, sentiment_scores
+        
+    except Exception as e:
+        logger.warning(f"Could not extract news data: {e}")
+        return [], [], []
+
+def _identify_positive_factors(ebm_output: List[Dict[str, Any]], sentiments: List[str]) -> List[str]:
+    """Identify positive contributing factors"""
+    factors = []
+    
+    # From EBM output
+    for item in ebm_output:
+        if item['contribution'] > 0:
+            factors.append(f"Strong {item['feature'].lower()}")
+    
+    # From sentiments
+    positive_count = sentiments.count('Positive')
+    if positive_count > 0:
+        factors.append(f"Positive news sentiment ({positive_count} articles)")
+    
+    return factors
+
+def _identify_negative_factors(ebm_output: List[Dict[str, Any]], sentiments: List[str]) -> List[str]:
+    """Identify negative risk factors"""
+    factors = []
+    
+    # From EBM output
+    for item in ebm_output:
+        if item['contribution'] < -0.05:  # Significant negative contribution
+            factors.append(f"Weak {item['feature'].lower()}")
+    
+    # From sentiments
+    negative_count = sentiments.count('Negative')
+    if negative_count > 0:
+        factors.append(f"Negative news sentiment ({negative_count} articles)")
+    
+    return factors
 
 # === EBM EXPLAINER (copied from ebm_exp.py) ===
 
