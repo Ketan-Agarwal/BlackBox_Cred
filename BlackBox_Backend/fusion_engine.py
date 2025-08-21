@@ -3,7 +3,7 @@
 """
 fusion_engine.py
 
-Dynamic fusion engine for risk scoring.
+Fusion engine for risk scoring.
 Self-contained implementation without external dependencies.
 """
 
@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 class GlobalFusion:
     """
-    Dynamic fusion system that:
+    Fusion system that:
     1. Combines multiple expert assessments intelligently
     2. Adapts weights based on expert agreement and market conditions
     3. Provides comprehensive explanations for all decisions
@@ -172,7 +172,7 @@ class GlobalFusion:
         """
         Main fusion function that combines all expert assessments
         """
-        logger.info("🔄 Starting dynamic_fusion fusion process...")
+        logger.info("🔄 Starting fusion process...")
         
         if not expert_assessments:
             logger.warning("No expert assessments provided for fusion")
@@ -257,7 +257,7 @@ class GlobalFusion:
         # Store in history
         self.fusion_history.append(fusion_result)
         
-        logger.info(f"✅ dynamic_fusion fusion complete. Final score: {final_fused_score:.1f}")
+        logger.info(f"✅ Fusion complete. Final score: {final_fused_score:.1f}")
         
         return fusion_result
     
@@ -268,7 +268,7 @@ class GlobalFusion:
         risk_level = "HIGH" if final_score > 70 else "MODERATE" if final_score > 40 else "LOW"
         agreement_level = "HIGH" if expert_agreement > 0.7 else "MODERATE" if expert_agreement > 0.4 else "LOW"
         
-        summary = f"dynamic_fusion Fusion Result: {risk_level} risk (score: {final_score:.1f}/100) "
+        summary = f"Fusion Result: {risk_level} risk (score: {final_score:.1f}/100) "
         summary += f"with {agreement_level} expert agreement ({expert_agreement:.1%}) "
         summary += f"under {market_regime} market conditions."
         
@@ -297,7 +297,7 @@ class GlobalFusion:
         """
         explanation = []
         
-        explanation.append("dynamic_fusion FUSION EXPLANATION")
+        explanation.append("FUSION EXPLANATION")
         explanation.append("=" * 40)
         explanation.append("")
         
@@ -336,7 +336,7 @@ def fuse_scores(structured_result: Dict[str, Any], unstructured_result: Dict[str
     try:
         logger.info("🔄 Starting score fusion with dynamic_fusion...")
         
-        # Initialize dynamic_fusion fusion engine
+        # Initialize fusion engine
         dynamic_fusion = GlobalFusion()
         
         # Prepare expert assessments

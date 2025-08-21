@@ -31,7 +31,7 @@ except Exception as e:
     FINBERT_LOADED = False
 
 # NewsAPI Configuration
-NEWS_API_KEY = "a729fdf14377486f931f6fb1e0fc940e"
+NEWS_API_KEY = "9ab5e737f4d345508eb83b0fb4f0a9cc"
 NEWS_API_BASE_URL = "https://newsapi.org/v2/everything"
 
 def analyze_article_sentiment(title: str, description: str = "", content: str = "") -> Dict[str, float]:
@@ -122,11 +122,13 @@ def analyze_risk_factors(text: str) -> Dict[str, Any]:
         'total_risk_signals': total_keywords
     }
 
-def fetch_company_news(company: str, days_back: int = 7, max_articles: int = 20) -> List[Dict[str, Any]]:
-    """Fetch recent news articles for a company using NewsAPI"""
-    end_date = datetime.date.today()
-    start_date = end_date - datetime.timedelta(days=days_back)
-    
+def fetch_company_news(company: str, days_back: int = 7, max_articles: int = 20, start_date: datetime.date = None, end_date: datetime.date = None) -> List[Dict[str, Any]]:
+    """Fetch news articles for a company using NewsAPI, optionally for a custom date range."""
+    if end_date is None:
+        end_date = datetime.date.today()
+    if start_date is None:
+        start_date = end_date - datetime.timedelta(days=days_back)
+
     params = {
         'q': f'"{company}" OR {company.replace(" ", " AND ")}',
         'from': start_date.isoformat(),
@@ -170,17 +172,17 @@ def fetch_company_news(company: str, days_back: int = 7, max_articles: int = 20)
         logger.error(f"❌ Error fetching news: {e}")
         return []
 
-def compute_unstructured_score(company_name: str, days_back: int = 7, max_articles: int = 20) -> Tuple[float, Dict[str, Any]]:
+def compute_unstructured_score(company_name: str, days_back: int = 7, max_articles: int = 20, start_date: datetime.date = None, end_date: datetime.date = None, articles: List[Dict[str, Any]] = None) -> Tuple[float, Dict[str, Any]]:
     """
     Compute unstructured score using news sentiment analysis with FinBERT.
+    Optionally for a custom date range.
     Returns: (unstructured_score, assessment_dict)
     """
     try:
         logger.info(f"📰 Computing unstructured score for {company_name}...")
-        
-        # Step 1: Fetch news articles
-        articles = fetch_company_news(company_name, days_back, max_articles)
-        
+        # Step 1: Use provided articles or fetch if not provided
+        if articles is None:
+            articles = fetch_company_news(company_name, days_back, max_articles, start_date, end_date)
         if not articles:
             logger.warning(f"⚠️ No articles found for {company_name}")
             return 50.0, {
@@ -190,11 +192,9 @@ def compute_unstructured_score(company_name: str, days_back: int = 7, max_articl
                 'sentiment_distribution': {'positive': 0, 'neutral': 0, 'negative': 0},
                 'method': 'No news data available'
             }
-        
         # Step 2: Analyze sentiment for each article
         sentiment_results = []
         all_risk_keywords = []
-        
         for i, article in enumerate(articles):
             # Sentiment analysis
             sentiment = analyze_article_sentiment(
@@ -203,27 +203,21 @@ def compute_unstructured_score(company_name: str, days_back: int = 7, max_articl
                 article.get('content', '')
             )
             sentiment_results.append(sentiment)
-            
             # Risk factor analysis
             full_text = f"{article['title']} {article.get('description', '')} {article.get('content', '')}"
             risk_analysis = analyze_risk_factors(full_text)
             all_risk_keywords.extend(risk_analysis['keywords_found'])
-        
         # Step 3: Calculate aggregate sentiment score
         net_sentiments = [result['net_sentiment'] for result in sentiment_results]
         avg_net_sentiment = np.mean(net_sentiments) if net_sentiments else 0.0
-        
         # Convert to 0-100 scale (0 = very positive, 100 = very negative)
         base_sentiment_score = 50 * (1 - avg_net_sentiment)  # Flip so higher = more risky
-        
         # Step 4: Calculate risk factor boost
         risk_keyword_count = len(all_risk_keywords)
         risk_boost = min(risk_keyword_count * 3, 25)  # Max 25 point boost
-        
         # Step 5: Final score calculation
         unstructured_score = base_sentiment_score + risk_boost
         unstructured_score = max(0, min(100, unstructured_score))
-        
         # Step 6: Calculate confidence
         if sentiment_results:
             avg_confidence = np.mean([r['confidence'] for r in sentiment_results])
@@ -231,16 +225,13 @@ def compute_unstructured_score(company_name: str, days_back: int = 7, max_articl
             confidence = (avg_confidence * 0.7 + article_confidence * 0.3)
         else:
             confidence = 0.3
-        
         # Step 7: Sentiment distribution
         sentiment_dist = {
             'positive': sum(1 for r in sentiment_results if r['net_sentiment'] > 0.1),
             'neutral': sum(1 for r in sentiment_results if -0.1 <= r['net_sentiment'] <= 0.1),
             'negative': sum(1 for r in sentiment_results if r['net_sentiment'] < -0.1)
         }
-        
         logger.info(f"✅ Unstructured Score: {unstructured_score:.1f}, Confidence: {confidence:.2%}")
-        
         assessment = {
             'unstructured_score': unstructured_score,
             'confidence': confidence,
@@ -252,9 +243,7 @@ def compute_unstructured_score(company_name: str, days_back: int = 7, max_articl
             'sample_headlines': [article['title'] for article in articles[:3]],
             'method': 'FinBERT + Risk Keyword Analysis'
         }
-        
         return unstructured_score, assessment
-        
     except Exception as e:
         logger.error(f"❌ Error in unstructured analysis: {e}")
         assessment = {

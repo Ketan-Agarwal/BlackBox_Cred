@@ -1,4 +1,3 @@
-
 """
 data_collection.py
 
@@ -23,8 +22,8 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # === CONFIGURATION ===
-NEWS_API_KEY = "a729fdf14377486f931f6fb1e0fc940e"
-NEWS_API_BASE_URL = "https://newsapi.org/v2/everything"
+NEWS_API_KEY = "9ab5e737f4d345508eb83b0fb4f0a9cc"
+NEWS_API_BASE_URL = "https://newsapi.org/v2/everything"  # Fixed: removed trailing spaces
 
 # === YAHOO FINANCE API DATA COLLECTION ===
 def fetch_yahoo_finance_data(ticker, rating_date):
@@ -180,14 +179,14 @@ def fetch_fred_macro_data(fred_api_key, start_date, end_date):
         return {}
 
 # === NEWS API DATA COLLECTION ===
-def fetch_news_articles(company_name, days_back=7, max_articles=20):
+def fetch_news_articles(company_name, days_back=7, max_articles=100):
     """
     Fetch recent news articles from NewsAPI.
     This aligns with 'NEWS - NewsAPI' in the architecture.
     Copied and modularized from news_unstructured_score.py.
     """
     end_date = datetime.date.today()
-    start_date = end_date - datetime.timedelta(days=days_back)
+    start_date = end_date - datetime.timedelta(days=days_back)  # Now uses the passed days_back parameter
     
     # Build API request parameters
     params = {
@@ -254,8 +253,17 @@ def fetch_news_articles(company_name, days_back=7, max_articles=20):
     
     return []
 
+# === HISTORICAL NEWS DATA COLLECTION (NEW FUNCTION) ===
+def fetch_historical_news_data(company_name, days_back=28, max_articles=100):
+    """
+    Fetch historical news data for the specified number of days.
+    This is used for historical analysis to avoid multiple API calls.
+    """
+    logger.info(f"📡 Fetching historical news for {company_name} (last {days_back} days)...")
+    return fetch_news_articles(company_name, days_back=days_back, max_articles=max_articles)
+
 # === COMBINED DATA COLLECTION INTERFACE ===
-def collect_all_data(company_name, ticker, rating_date, fred_api_key=None):
+def collect_all_data(company_name, ticker, rating_date, fred_api_key=None, news_days_back=7):
     """
     Orchestrates all data collection according to the architecture.
     Returns separate raw datasets for Yahoo Finance, FRED, and News.
@@ -285,9 +293,9 @@ def collect_all_data(company_name, ticker, rating_date, fred_api_key=None):
     else:
         results['fred_macro_data'] = {}
     
-    # 3. News Data Collection
+    # 3. News Data Collection - Now uses the days_back parameter
     logger.info("=== NEWS DATA COLLECTION ===")
-    news_data = fetch_news_articles(company_name, days_back=7, max_articles=20)
+    news_data = fetch_news_articles(company_name, days_back=news_days_back, max_articles=20)
     results['news_articles'] = news_data
     
     logger.info(f"Data collection complete for {company_name}")
@@ -302,7 +310,8 @@ if __name__ == "__main__":
         company_name="Apple Inc.",
         ticker="AAPL", 
         rating_date=datetime.date(2024, 8, 20),
-        fred_api_key=fred_api_key
+        fred_api_key=fred_api_key,
+        news_days_back=7  # Added parameter
     )
     
     print(f"Collected data for {result['company_name']}")
