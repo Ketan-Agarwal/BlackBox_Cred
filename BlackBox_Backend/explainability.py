@@ -82,20 +82,20 @@ def generate_comprehensive_explainability_report(
         lines.append("")
 
         # 4. Market Volatility Influence
-        lines.append("Market Volatility Influence")
+        lines.append("Market Conditions Impact")
         market_regime = market_conditions.get('regime', 'NORMAL')
         vix = market_conditions.get('vix', 20.0)
-        # --- FIX 2: Corrected logic for stable/volatile interpretation ---
+        # --- Corrected logic for stable/volatile interpretation ---
         if alpha > threshold: # Higher alpha means more stable (lower volatility)
-            lines.append(f"   → Market was STABLE (VIX: {vix:.1f}, Regime: {market_regime})")
-            lines.append("   → Financial fundamentals had higher influence on the score than news sentiments.")
+            lines.append(f"   → Market Conditions: STABLE (Fear Index: {vix:.1f}, Overall: {market_regime})")
+            lines.append("   → Financial fundamentals were given higher priority in the final score")
         else: # Lower alpha means more volatile
-            lines.append(f"   → Market was VOLATILE (VIX: {vix:.1f}, Regime: {market_regime})")
-            lines.append("   → News sentiment had stronger influence on the score than financial fundamentals.")
+            lines.append(f"   → Market Conditions: VOLATILE (Fear Index: {vix:.1f}, Overall: {market_regime})")
+            lines.append("   → Recent news and sentiment were given higher priority in the final score")
         lines.append("")
 
         # 5. Top Contributing Financial Factors
-        lines.append("Top Contributing Financial Factors")
+        lines.append("Key Financial Drivers")
         if ebm_output:
             # Get necessary values for point calculation (if needed for alternative methods)
             # Use the final_score passed in, or fallback if needed (though it's an arg)
@@ -109,11 +109,11 @@ def generate_comprehensive_explainability_report(
 
             # --- DYNAMIC SELECTION BASED ON FINAL CREDIT SCORE (Higher is Better) ---
             if final_score_for_report >= 50:
-                lines.append("   Showing factors that MOST increased the credit score:")
+                lines.append("   Financial factors that IMPROVED the credit score:")
                 # Sort by raw_contribution descending to get features with highest positive impact
                 top_contributors = sorted(ebm_output, key=lambda x: x['raw_contribution'], reverse=True)[:5]
             else:
-                lines.append("   Showing factors that MOST decreased the credit score:")
+                lines.append("   Financial factors that LOWERED the credit score:")
                 # Sort by raw_contribution ascending to get features with the most negative impact
                 top_contributors = sorted(ebm_output, key=lambda x: x['raw_contribution'])[:5]
 
@@ -128,41 +128,35 @@ def generate_comprehensive_explainability_report(
                     points_impact_on_structured = structured_component_score * contrib_percentage
                     points_impact_on_final = struct_weight_for_points * points_impact_on_structured
 
-                    lines.append(f"   {i}. {feat['feature']} (Value: {feat['formatted_value']})")
-                    lines.append(f"      Interpretation: {feat['interpretation']}")
-                    lines.append(f"      Raw Model Contribution: {raw_contrib:+.4f}")
+                    lines.append(f"   {i}. {feat['feature']} = {feat['formatted_value']}")
+                    lines.append(f"      What this means: {feat['interpretation']}")
+                    lines.append(f"      Model Impact: {raw_contrib:+.4f}")
                     # --- IMPROVED CLARITY OF IMPACT DESCRIPTION ---
                     if raw_contrib >= 0:
-                        lines.append(f"      Relative Impact Magnitude: +{contrib_percentage*100:.2f}% of total structured influence")
-                        lines.append(f"      Estimated Contribution to Final Score: +{points_impact_on_final:.2f} points")
+                        lines.append(f"      Influence on Score: +{contrib_percentage*100:.1f}% of financial impact")
+                        lines.append(f"      Points Added to Final Score: +{points_impact_on_final:.1f}")
                     else:
-                        lines.append(f"      Relative Impact Magnitude: -{contrib_percentage*100:.2f}% of total structured influence")
-                        lines.append(f"      Estimated Contribution to Final Score: -{points_impact_on_final:.2f} points")
+                        lines.append(f"      Influence on Score: -{contrib_percentage*100:.1f}% of financial impact")
+                        lines.append(f"      Points Removed from Final Score: -{points_impact_on_final:.1f}")
                     lines.append("")
 
-            # --- DEBUG: Print ALL feature contributions ---
-            lines.append("   --- ALL EBM FEATURE CONTRIBUTIONS (for debugging) ---")
-            # --- FIXED DEBUG LIST SORTING: Sort by absolute contribution for influence view ---
-            all_features_sorted = sorted(ebm_output, key=lambda x: abs(x['raw_contribution']), reverse=True)
-            for feat in all_features_sorted:
-                lines.append(f"      {feat['feature']}: Value={feat['formatted_value']}, Raw_Contrib={feat['raw_contribution']:+.4f}")
-            lines.append("   --- END OF DEBUG LIST ---")
+            # Remove the debug section - it's too technical for end users
             lines.append("")
 
         else:
             # Fallback: use top financial features from structured_features
-            lines.append("   Using top financial features based on values:")
+            lines.append("   Using available financial metrics:")
             top_features = _get_top_financial_features(structured_features)
             for i, (feature, value, desc) in enumerate(top_features[:5], start=1):
-                lines.append(f"   {i}. {feature.replace('_', ' ').title()} (Value: {value:.4f})")
+                lines.append(f"   {i}. {feature.replace('_', ' ').title()} = {value:.4f}")
                 lines.append(f"      Assessment: {desc}")
                 lines.append("")
             if not top_features:
-                lines.append("   No detailed feature contributions available")
+                lines.append("   No detailed financial data available")
             lines.append("")
 
         # 6. Impact of Global Sentiments on the Score
-        lines.append("Impact of News Sentiments on the Score")
+        lines.append("News & Market Sentiment Impact")
         if headlines and sentiments and sentiment_scores:
             # Pick Top 3 by sentiment score
             headline_data = list(zip(headlines, sentiments, sentiment_scores))
@@ -170,56 +164,47 @@ def generate_comprehensive_explainability_report(
 
             # Global severity from alpha (consistent with section 4)
             if alpha > threshold:
-                global_context = "Due to stable market conditions, the impact of news was moderated."
+                global_context = "Due to stable market conditions, news impact was moderated."
                 global_emphasis = " moderately"
             else:
-                global_context = "Due to volatile market conditions, the impact of news was amplified."
-                global_emphasis = " strongly"
+                global_context = "Due to volatile market conditions, news impact was amplified."
+                global_emphasis = " significantly"
             lines.append(f"   {global_context}")
 
             for i, (headline, sentiment, score) in enumerate(top_headlines, start=1):
-                 # --- FIX 5: Corrected impact text logic ---
                 # Impact direction (assuming negative news increases risk score, positive decreases)
                 # The final score is a CREDIT score (higher = better). So negative sentiment (bad news) should DECREASE it.
                 if sentiment.lower() == "positive":
-                    impact_text = "increased the credit score" # Good news raises credit score
+                    impact_text = "boosted the credit score" # Good news raises credit score
                 elif sentiment.lower() == "negative":
-                    impact_text = "decreased the credit score" # Bad news lowers credit score
+                    impact_text = "reduced the credit score" # Bad news lowers credit score
                 else:
-                    impact_text = "had a neutral effect on the credit score"
+                    impact_text = "had neutral impact on the credit score"
 
                 # Local severity (based on score)
                 abs_score = abs(score)
-                if abs_score > 0.6: # Adjusted thresholds for better granularity
-                    local_severity = "significantly (High Impact)"
+                if abs_score > 0.6:
+                    local_severity = "High Impact"
                 elif abs_score > 0.3:
-                    local_severity = "moderately (Moderate Impact)"
+                    local_severity = "Moderate Impact"
                 else:
-                    local_severity = "slightly (Low Impact)"
+                    local_severity = "Low Impact"
 
                 # Combine global + local
-                if sentiment.lower() != "neutral":
-                    lines.append(
-                        f"   {i}. \"{headline[:80]}...\" had a {sentiment.lower()} sentiment, "
-                        f"which {impact_text}{global_emphasis} {local_severity}."
-                    )
-                else:
-                    lines.append(
-                        f"   {i}. \"{headline[:80]}...\" had neutral sentiment, "
-                        f"which {impact_text}{global_emphasis} {local_severity}."
-                    )
+                lines.append(f"   {i}. \"{headline[:60]}...\"")
+                lines.append(f"      Sentiment: {sentiment.title()} ({local_severity})")
+                lines.append(f"      Effect: {impact_text}{global_emphasis}")
                 lines.append("")
         else:
-            lines.append("   No news data available for sentiment analysis")
+            lines.append("   No recent news data available for sentiment analysis")
             lines.append("")
 
         # 7. Risk Assessment Summary
-        lines.append("Risk Assessment Summary")
-        # --- FIXED CONSISTENCY: Use the same logic as _generate_risk_assessment_data ---
-        # AND use the final_score argument passed to the function (via final_score_for_report)
+        lines.append("Overall Risk Assessment")
+        # Use the final_score argument passed to the function (via final_score_for_report)
         if final_score_for_report >= 80: # Excellent
             risk_level = "LOW RISK"
-            risk_desc = "Strong credit profile with minimal default probability"
+            risk_desc = "Strong creditworthiness with minimal default probability"
         elif final_score_for_report >= 60: # Good
             risk_level = "MODERATE-LOW RISK"
             risk_desc = "Solid credit profile with acceptable risk levels"
@@ -232,37 +217,34 @@ def generate_comprehensive_explainability_report(
         else: # Very Poor
             risk_level = "VERY HIGH RISK"
             risk_desc = "Very high credit risk requiring immediate attention"
-        lines.append(f"   Risk Level: {risk_level}")
-        lines.append(f"   Assessment: {risk_desc}")
+        lines.append(f"   Risk Category: {risk_level}")
+        lines.append(f"   Summary: {risk_desc}")
         lines.append("")
 
-        # 8. Final Narrative Summary
-        lines.append("Final Narrative Summary")
+        # 8. Final Summary
+        lines.append("Key Insights")
         # Market condition narrative (consistent with section 4)
         if alpha > threshold:
-            lines.append("   Market conditions were stable during the assessment period.")
-            lines.append("   The credit score was primarily driven by fundamental financial ratios.")
+            lines.append("   → Market stability favored financial fundamentals in scoring")
         else:
-            lines.append("   Market conditions were volatile during the assessment period.")
-            lines.append("   Recent news headlines had stronger influence on the final score.")
+            lines.append("   → Market volatility increased importance of recent news sentiment")
 
         # Strength and risk identification
         positive_factors = _identify_positive_factors(ebm_output, sentiments)
         negative_factors = _identify_negative_factors(ebm_output, sentiments)
         if positive_factors:
-            lines.append(f"   Key strengths: {', '.join(positive_factors[:3])}")
+            lines.append(f"   → Main strengths: {', '.join(positive_factors[:3])}")
         if negative_factors:
-            lines.append(f"   Key risks: {', '.join(negative_factors[:3])}")
+            lines.append(f"   → Key concerns: {', '.join(negative_factors[:3])}")
         lines.append("")
 
-        # 9. Technical Details
-        lines.append("Technical Details")
-        lines.append(f"   Model: Explainable Boosting Machine (EBM)")
-        lines.append(f"   Sentiment Analysis: FinBERT")
-        lines.append(f"   Fusion Algorithm: Dynamic Weighting")
-        lines.append(f"   Articles Analyzed: {unstructured_result.get('articles_analyzed', 0)}")
-        # --- FIX 6: Corrected source of features_used ---
-        lines.append(f"   Features Used: {len(structured_features)}") # Or len(feature_contributions) if available
+        # 9. Technical Information
+        lines.append("Analysis Details")
+        lines.append(f"   Machine Learning Model: Explainable Boosting Machine")
+        lines.append(f"   Sentiment Analysis: FinBERT Financial Language Model")
+        lines.append(f"   Score Fusion: Dynamic Weighting Algorithm")
+        lines.append(f"   News Articles Analyzed: {unstructured_result.get('articles_analyzed', 0)}")
+        lines.append(f"   Financial Metrics Used: {len(structured_features)}")
         lines.append("")
 
         # Timestamp
