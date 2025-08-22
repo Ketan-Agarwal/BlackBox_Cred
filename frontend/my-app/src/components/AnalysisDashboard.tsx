@@ -250,7 +250,7 @@ const { company_info, explainability_report, historical_scores_detailed } = pars
               </Badge>
             </h1>
             <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-              Assessment time: {new Date(payload.created_at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })} IST
+              Assessment time: {new Date(payload.created_at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })} UTC
             </p>
           </div>
         </div>
