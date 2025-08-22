@@ -77,9 +77,9 @@ def generate_comprehensive_explainability_report(
         top_financial_factors: List[Dict[str, Any]] = []
         if ebm_output:
             total_abs_contribution = sum(abs(feat['raw_contribution']) for feat in ebm_output) or 1e-8
-            top_contributors = (
-                sorted(ebm_output, key=lambda x: x['raw_contribution'], reverse=(final_score >= 50))
-            )[:5]
+            reverse_sort = bool(final_score >= 50)
+            top_contributors = sorted(ebm_output, key=lambda x: float(x['raw_contribution']), reverse=reverse_sort)[:5]
+
             for feat in top_contributors:
                 contrib_percentage = abs(feat['raw_contribution']) / total_abs_contribution
                 points_impact_on_structured = structured_score * contrib_percentage
