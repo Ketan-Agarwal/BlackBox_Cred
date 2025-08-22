@@ -3,12 +3,12 @@ import numpy as np
 from collections import Counter
 import datetime
 import logging
-from pipeline.data_collection import collect_all_data, fetch_historical_news_data
+from pipeline.data_collection import collect_all_data
 from pipeline.data_processing import process_collected_data
 from pipeline.structured_analysis import compute_structured_score
-from pipeline.unstructured_analysis import compute_unstructured_score, analyze_article_sentiment, analyze_risk_factors
+from pipeline.unstructured_analysis import analyze_article_sentiment, analyze_risk_factors
 from pipeline.fusion_engine import fuse_scores
-from pipeline.explainability import explain_structured_score, explain_unstructured_score, explain_fusion, generate_comprehensive_explainability_report
+from pipeline.explainability import explain_fusion, generate_comprehensive_explainability_report
 
 logger = logging.getLogger(__name__)
 
@@ -122,7 +122,7 @@ def run_credit_pipeline_with_db_cache(company_name, ticker, fred_api_key=None, d
         base_sentiment_score = 50 * (1 - avg_net_sentiment)
         risk_keyword_count = len(all_risk_keywords)
         risk_boost = min(risk_keyword_count * 3, 25)
-        unstructured_score = max(0, min(100, base_sentiment_score + risk_boost))
+        unstructured_score = max(0, min(100, 100 - base_sentiment_score + risk_boost))
 
         if sentiment_results:
             avg_confidence = np.mean([r['confidence'] for r in sentiment_results])
