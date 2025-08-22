@@ -33,7 +33,6 @@ def fetch_yahoo_finance_data(ticker, rating_date):
     Fetch financial and market data from Yahoo Finance API.
     This aligns with 'YF - Yahoo Finance API' in the architecture.
     """
-    logger.info(f"Fetching Yahoo Finance data for {ticker} around {rating_date}")
     
     try:
         stock = yf.Ticker(ticker)

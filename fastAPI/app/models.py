@@ -1,7 +1,16 @@
-from sqlalchemy import Column, String, Float, JSON, TIMESTAMP
+from sqlalchemy import Column, String, Float, JSON, TIMESTAMP, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
 import uuid
-from app.db import Base
+from db import Base
+from sqlalchemy import Column, String, Float, DateTime, Boolean
+from sqlalchemy.dialects.postgresql import UUID
+import uuid
+from sqlalchemy.ext.declarative import declarative_base
+from datetime import datetime
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.orm import relationship
+
+Base = declarative_base()
 
 class Issuer(Base):
     __tablename__ = "issuers"
@@ -11,6 +20,24 @@ class Issuer(Base):
     sector = Column(String)
     country = Column(String)
 
+
+class Company(Base):
+    __tablename__ = "companies"
+
+    ticker = Column(String, primary_key=True, index=True)  # e.g., "AAPL"
+    name = Column(String, nullable=False)  # e.g., "Apple Inc."
+
+    analyses = relationship("Analysis", back_populates="company", cascade="all, delete-orphan")
+
+class Analysis(Base):
+    __tablename__ = "analyses"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    ticker = Column(String, ForeignKey("companies.ticker"), nullable=False)
+    report = Column(JSONB, nullable=False)  # Full JSON report
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    company = relationship("Company", back_populates="analyses")
 class Score(Base):
     __tablename__ = "scores"
     issuer_id = Column(UUID(as_uuid=True), primary_key=True)

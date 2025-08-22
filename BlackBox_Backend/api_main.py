@@ -8,7 +8,7 @@ from pydantic import BaseModel
 from typing import Dict, Any
 import httpx
 # Import your main pipeline function and DB interface
-from main_pipeline import run_credit_pipeline_with_db_cache
+from fastAPI.app.pipeline.main_pipeline import run_credit_pipeline_with_db_cache
 from neon_db_interface import NeonDBInterface
 from dotenv import load_dotenv
 import os

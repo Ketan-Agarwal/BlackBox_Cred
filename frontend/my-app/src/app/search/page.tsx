@@ -2,27 +2,15 @@
 
 import { useEffect, useState } from "react";
 import { Input } from "@/components/ui/input";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
+import AnalysisDashboard from "@/components/AnalysisDashboard";
 
 interface AnalysisResponse {
-  company_info: {
-    company: string;
-    credit_grade: string;
-    analysis_date: string;
-    structured_score: string;
-    final_fused_score: string;
-    unstructured_score: string;
-  };
-  fusion_explanation: {
-    explanation: string;
-    fusion_method: string;
-    market_regime: string;
-    expert_agreement: number;
-  };
-  explainability_report?: string;
-  historical_scores_summary: string;
+  report: string;
+  created_at: string;
+  ticker: string;
+  id: string;
 }
 
 export default function SearchPage() {
@@ -53,9 +41,8 @@ export default function SearchPage() {
     }, 300);
 
     return () => clearTimeout(timeout);
-  }, [query]);
+  }, [query, shouldSearch]);
 
-  // Handle Analyze click
   const handleAnalyze = async () => {
     if (!ticker) {
       setError("Please select a ticker.");
@@ -81,18 +68,23 @@ export default function SearchPage() {
   };
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
-      <h1 className="text-2xl font-bold mb-4">Credit Risk Analysis</h1>
+    <div className="min-h-screen w-full p-6 bg-gray-50 dark:bg-gray-950 flex flex-col">
+      <h1 className="text-3xl font-bold mb-6 text-center">Credit Risk Analysis</h1>
 
       {/* Search Bar */}
-      <div className="relative mb-6">
+      <div className="relative mb-6 w-full max-w-3xl mx-auto">
         <Input
           type="text"
           placeholder="Search for a company or ticker..."
           value={query}
-          onChange={(e) => {setShouldSearch(true); setQuery(e.target.value)}}
+          onChange={(e) => {
+            setShouldSearch(true);
+            setQuery(e.target.value);
+          }}
         />
-        {shouldSearch && loadingSearch && <p className="absolute right-3 top-3 text-gray-400 text-sm">Loading...</p>}
+        {shouldSearch && loadingSearch && (
+          <p className="absolute right-3 top-3 text-gray-400 text-sm">Loading...</p>
+        )}
         {shouldSearch && results.length > 0 && (
           <ul className="absolute z-10 bg-white border rounded shadow mt-1 w-full max-h-60 overflow-y-auto">
             {results.map((item) => (
@@ -114,63 +106,24 @@ export default function SearchPage() {
       </div>
 
       {/* Analyze Button */}
-      <Button onClick={handleAnalyze} disabled={loadingAnalyze} className="mb-6">
-        {loadingAnalyze ? (
-          <>
-            <Loader2 className="animate-spin h-4 w-4 mr-2" /> Analyzing...
-          </>
-        ) : (
-          "Analyze"
-        )}
-      </Button>
+      <div className="flex justify-center mb-6">
+        <Button onClick={handleAnalyze} disabled={loadingAnalyze}>
+          {loadingAnalyze ? (
+            <>
+              <Loader2 className="animate-spin h-4 w-4 mr-2" /> Analyzing...
+            </>
+          ) : (
+            "Analyze"
+          )}
+        </Button>
+      </div>
 
-      {error && <p className="text-red-500 mb-4">{error}</p>}
+      {error && <p className="text-red-500 text-center mb-4">{error}</p>}
 
-      {/* Report Section */}
-      {analysis && (
-        <Card>
-          <CardHeader>
-            <CardTitle>{analysis.company_info.company}</CardTitle>
-            <p className="text-sm text-gray-500">Analysis Date: {analysis.company_info.analysis_date}</p>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <p className="text-lg font-semibold">Final Fused Score:</p>
-                <p className="text-2xl">{analysis.company_info.final_fused_score}</p>
-                <p className="text-gray-500">Credit Grade: {analysis.company_info.credit_grade}</p>
-              </div>
-              <div>
-                <p className="text-lg font-semibold">Components:</p>
-                <p>Structured Score: {analysis.company_info.structured_score}</p>
-                <p>Unstructured Score: {analysis.company_info.unstructured_score}</p>
-              </div>
-            </div>
-
-            {/* Fusion Explanation */}
-            <div className="mt-6">
-              <h3 className="font-semibold text-lg mb-2">Fusion Analysis</h3>
-              <p className="text-gray-600 whitespace-pre-line">{analysis.fusion_explanation.explanation}</p>
-            </div>
-
-            {/* Explainability Report */}
-            {analysis.explainability_report && (
-              <div className="mt-6">
-                <h3 className="font-semibold text-lg mb-2">Explainability Report</h3>
-                <p className="text-gray-600 whitespace-pre-line">{analysis.explainability_report}</p>
-              </div>
-            )}
-
-            {/* Historical Scores */}
-            <div className="mt-6">
-              <h3 className="font-semibold text-lg mb-2">Historical Scores</h3>
-              <pre className="bg-gray-100 p-3 rounded text-sm whitespace-pre-line">
-                {analysis.historical_scores_summary}
-              </pre>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {/* Full-width dashboard */}
+      <div className="flex-1 w-full">
+        {analysis && <AnalysisDashboard payload={analysis} />}
+      </div>
     </div>
   );
 }

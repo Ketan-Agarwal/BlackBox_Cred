@@ -1,6 +1,6 @@
 from sqlalchemy.future import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.models import Issuer, Score
+from models import Issuer, Score
 from datetime import datetime
 
 async def get_issuer_by_ticker(db: AsyncSession, ticker: str):

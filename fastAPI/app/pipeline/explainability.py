@@ -19,6 +19,10 @@ from dotenv import load_dotenv
 load_dotenv()
 # === INTEGRATED COMPREHENSIVE EXPLAINABILITY REPORT ===
 MODEL_PATH = os.getenv("MODEL_PATH")
+import datetime
+import json
+from typing import Dict, Any, List
+
 def generate_comprehensive_explainability_report(
     company_name: str,
     final_score: float,
@@ -28,233 +32,137 @@ def generate_comprehensive_explainability_report(
     fusion_result: Dict[str, Any],
     market_conditions: Dict[str, Any],
     structured_features: Dict[str, Any]
-) -> str:
+) -> Dict[str, Any]:
     """
-    Generate comprehensive explainability report integrating teammate's format
-    with your existing pipeline data.
+    Generate a machine-readable explainability report as JSON instead of plain text.
     """
     try:
-        # Extract key data for the report
         alpha = _calculate_volatility_factor(market_conditions)
-        threshold = 0.7  # Standard threshold for market volatility
-
-        # Extract EBM feature contributions using EBMExplainer
+        threshold = 0.7  # Standard threshold for market stability
         ebm_output = _extract_ebm_contributions_via_explainer(structured_result, structured_features, company_name)
-
-        # Extract news headlines and sentiments
         headlines, sentiments, sentiment_scores = _extract_news_data(unstructured_result)
 
-        # Generate the comprehensive report
-        lines = []
-        lines.append(f"CREDIT RISK EXPLAINABILITY REPORT for {company_name}")
-        lines.append("="*60)
-        lines.append("")
-
-        # 1. Final Score
-        lines.append("Final Credit Assessment")
-        lines.append(f"   Overall Credit Score: {final_score:.1f}/100")
-        lines.append(f"   Credit Grade: {credit_grade}")
-        lines.append(f"   Assessment Date: {datetime.datetime.now().strftime('%Y-%m-%d')}")
-        lines.append("")
-
-        # 2. Data Sources
-        lines.append("Data Sources Used in Calculation")
-        lines.append("   - Financial Ratios & Structured Analysis (EBM)")
-        lines.append("   - News Sentiment Analysis (FinBERT)")
-        lines.append("   - Market Volatility & Economic Indicators")
-        lines.append("   - Dynamic Fusion Algorithm (Dynamic Weighting)")
-        lines.append("")
-
-        # 3. Component Scores
-        # --- FIX 1: Use fused component scores if available, otherwise defaults ---
+        # Component Scores
         structured_score = fusion_result.get('expert_contributions', {}).get('structured_expert', {}).get('score', structured_result.get('structured_score', 50.0))
         unstructured_score = fusion_result.get('expert_contributions', {}).get('news_sentiment_expert', {}).get('score', unstructured_result.get('unstructured_score', 50.0))
 
-        lines.append("Component Analysis")
-        lines.append(f"   Structured Analysis Score: {structured_score:.1f}/100")
-        lines.append(f"   Unstructured Analysis Score: {unstructured_score:.1f}/100")
-
-        # Dynamic weights from fusion
+        # Dynamic Weights
         dynamic_weights = fusion_result.get('dynamic_weights', {})
-        struct_weight = dynamic_weights.get('structured_expert', 0.5) * 100 # Default to 0.5 if missing
-        news_weight = dynamic_weights.get('news_sentiment_expert', 0.5) * 100 # Default to 0.5 if missing
-        lines.append(f"   Structured Weight: {struct_weight:.1f}%")
-        lines.append(f"   News Sentiment Weight: {news_weight:.1f}%")
-        lines.append("")
+        struct_weight = dynamic_weights.get('structured_expert', 0.5)
+        news_weight = dynamic_weights.get('news_sentiment_expert', 0.5)
 
-        # 4. Market Volatility Influence
-        lines.append("Market Conditions Impact")
+        # Market Conditions
         market_regime = market_conditions.get('regime', 'NORMAL')
         vix = market_conditions.get('vix', 20.0)
-        # --- Corrected logic for stable/volatile interpretation ---
-        if alpha > threshold: # Higher alpha means more stable (lower volatility)
-            lines.append(f"   → Market Conditions: STABLE (Fear Index: {vix:.1f}, Overall: {market_regime})")
-            lines.append("   → Financial fundamentals were given higher priority in the final score")
-        else: # Lower alpha means more volatile
-            lines.append(f"   → Market Conditions: VOLATILE (Fear Index: {vix:.1f}, Overall: {market_regime})")
-            lines.append("   → Recent news and sentiment were given higher priority in the final score")
-        lines.append("")
+        market_status = "STABLE" if alpha > threshold else "VOLATILE"
 
-        # 5. Top Contributing Financial Factors
-        lines.append("Key Financial Drivers")
-        if ebm_output:
-            # Get necessary values for point calculation (if needed for alternative methods)
-            # Use the final_score passed in, or fallback if needed (though it's an arg)
-            final_score_for_report = final_score # <<< DEFINE IT HERE FROM FUNCTION ARG >>>
-            structured_component_score = fusion_result.get('expert_contributions', {}).get('structured_expert', {}).get('score', structured_result.get('structured_score', 50.0))
-            struct_weight_for_points = fusion_result.get('dynamic_weights', {}).get('structured_expert', 0.5) # Default weight
-
-            # Calculate total absolute raw contribution for percentage calculation (if needed)
-            total_abs_contribution = sum(abs(feat['raw_contribution']) for feat in ebm_output)
-            if total_abs_contribution == 0: total_abs_contribution = 1e-8 # Avoid division by zero
-
-            # --- DYNAMIC SELECTION BASED ON FINAL CREDIT SCORE (Higher is Better) ---
-            if final_score_for_report >= 50:
-                lines.append("   Financial factors that IMPROVED the credit score:")
-                # Sort by raw_contribution descending to get features with highest positive impact
-                top_contributors = sorted(ebm_output, key=lambda x: x['raw_contribution'], reverse=True)[:5]
-            else:
-                lines.append("   Financial factors that LOWERED the credit score:")
-                # Sort by raw_contribution ascending to get features with the most negative impact
-                top_contributors = sorted(ebm_output, key=lambda x: x['raw_contribution'])[:5]
-
-            # --- DISPLAY THE SELECTED TOP CONTRIBUTORS ---
-            if top_contributors:
-                for i, feat in enumerate(top_contributors, start=1):
-                    raw_contrib = feat['raw_contribution']
-                    contrib_percentage = abs(raw_contrib) / total_abs_contribution
-                    # --- IMPROVED POINT IMPACT DESCRIPTION ---
-                    # The formula calculates impact relative to the structured component score's magnitude
-                    # and the fusion weight. The description should reflect this.
-                    points_impact_on_structured = structured_component_score * contrib_percentage
-                    points_impact_on_final = struct_weight_for_points * points_impact_on_structured
-
-                    lines.append(f"   {i}. {feat['feature']} = {feat['formatted_value']}")
-                    lines.append(f"      What this means: {feat['interpretation']}")
-                    lines.append(f"      Model Impact: {raw_contrib:+.4f}")
-                    # --- IMPROVED CLARITY OF IMPACT DESCRIPTION ---
-                    if raw_contrib >= 0:
-                        lines.append(f"      Influence on Score: +{contrib_percentage*100:.1f}% of financial impact")
-                        lines.append(f"      Points Added to Final Score: +{points_impact_on_final:.1f}")
-                    else:
-                        lines.append(f"      Influence on Score: -{contrib_percentage*100:.1f}% of financial impact")
-                        lines.append(f"      Points Removed from Final Score: -{points_impact_on_final:.1f}")
-                    lines.append("")
-
-            # Remove the debug section - it's too technical for end users
-            lines.append("")
-
-        else:
-            # Fallback: use top financial features from structured_features
-            lines.append("   Using available financial metrics:")
-            top_features = _get_top_financial_features(structured_features)
-            for i, (feature, value, desc) in enumerate(top_features[:5], start=1):
-                lines.append(f"   {i}. {feature.replace('_', ' ').title()} = {value:.4f}")
-                lines.append(f"      Assessment: {desc}")
-                lines.append("")
-            if not top_features:
-                lines.append("   No detailed financial data available")
-            lines.append("")
-
-        # 6. Impact of Global Sentiments on the Score
-        lines.append("News & Market Sentiment Impact")
-        if headlines and sentiments and sentiment_scores:
-            # Pick Top 3 by sentiment score
-            headline_data = list(zip(headlines, sentiments, sentiment_scores))
-            top_headlines = sorted(headline_data, key=lambda x: abs(x[2]), reverse=True)[:3]
-
-            # Global severity from alpha (consistent with section 4)
-            if alpha > threshold:
-                global_context = "Due to stable market conditions, news impact was moderated."
-                global_emphasis = " moderately"
-            else:
-                global_context = "Due to volatile market conditions, news impact was amplified."
-                global_emphasis = " significantly"
-            lines.append(f"   {global_context}")
-
-            for i, (headline, sentiment, score) in enumerate(top_headlines, start=1):
-                # Impact direction (assuming negative news increases risk score, positive decreases)
-                # The final score is a CREDIT score (higher = better). So negative sentiment (bad news) should DECREASE it.
-                if sentiment.lower() == "positive":
-                    impact_text = "boosted the credit score" # Good news raises credit score
-                elif sentiment.lower() == "negative":
-                    impact_text = "reduced the credit score" # Bad news lowers credit score
-                else:
-                    impact_text = "had neutral impact on the credit score"
-
-                # Local severity (based on score)
-                abs_score = abs(score)
-                if abs_score > 0.6:
-                    local_severity = "High Impact"
-                elif abs_score > 0.3:
-                    local_severity = "Moderate Impact"
-                else:
-                    local_severity = "Low Impact"
-
-                # Combine global + local
-                lines.append(f"   {i}. \"{headline[:60]}...\"")
-                lines.append(f"      Sentiment: {sentiment.title()} ({local_severity})")
-                lines.append(f"      Effect: {impact_text}{global_emphasis}")
-                lines.append("")
-        else:
-            lines.append("   No recent news data available for sentiment analysis")
-            lines.append("")
-
-        # 7. Risk Assessment Summary
-        lines.append("Overall Risk Assessment")
-        # Use the final_score argument passed to the function (via final_score_for_report)
-        if final_score_for_report >= 80: # Excellent
+        # Risk Category
+        if final_score >= 80:
             risk_level = "LOW RISK"
             risk_desc = "Strong creditworthiness with minimal default probability"
-        elif final_score_for_report >= 60: # Good
+        elif final_score >= 60:
             risk_level = "MODERATE-LOW RISK"
             risk_desc = "Solid credit profile with acceptable risk levels"
-        elif final_score_for_report >= 40: # Fair
+        elif final_score >= 40:
             risk_level = "MODERATE-HIGH RISK"
             risk_desc = "Elevated risk requiring careful monitoring"
-        elif final_score_for_report >= 20: # Poor
+        elif final_score >= 20:
             risk_level = "HIGH RISK"
             risk_desc = "Significant credit risk with high default probability"
-        else: # Very Poor
+        else:
             risk_level = "VERY HIGH RISK"
             risk_desc = "Very high credit risk requiring immediate attention"
-        lines.append(f"   Risk Category: {risk_level}")
-        lines.append(f"   Summary: {risk_desc}")
-        lines.append("")
 
-        # 8. Final Summary
-        lines.append("Key Insights")
-        # Market condition narrative (consistent with section 4)
-        if alpha > threshold:
-            lines.append("   → Market stability favored financial fundamentals in scoring")
-        else:
-            lines.append("   → Market volatility increased importance of recent news sentiment")
+        # Key Financial Drivers
+        top_financial_factors: List[Dict[str, Any]] = []
+        if ebm_output:
+            total_abs_contribution = sum(abs(feat['raw_contribution']) for feat in ebm_output) or 1e-8
+            top_contributors = (
+                sorted(ebm_output, key=lambda x: x['raw_contribution'], reverse=(final_score >= 50))
+            )[:5]
+            for feat in top_contributors:
+                contrib_percentage = abs(feat['raw_contribution']) / total_abs_contribution
+                points_impact_on_structured = structured_score * contrib_percentage
+                points_impact_on_final = struct_weight * points_impact_on_structured
+                top_financial_factors.append({
+                    "feature": feat['feature'],
+                    "value": feat['formatted_value'],
+                    "interpretation": feat['interpretation'],
+                    "raw_contribution": feat['raw_contribution'],
+                    "contribution_percentage": round(contrib_percentage * 100, 2),
+                    "impact_on_final_score": round(points_impact_on_final, 2)
+                })
 
-        # Strength and risk identification
+        # News Impact
+        news_impact: List[Dict[str, Any]] = []
+        if headlines and sentiments and sentiment_scores:
+            top_headlines = sorted(zip(headlines, sentiments, sentiment_scores), key=lambda x: abs(x[2]), reverse=True)[:3]
+            for headline, sentiment, score in top_headlines:
+                abs_score = abs(score)
+                if abs_score > 0.6:
+                    impact_level = "High"
+                elif abs_score > 0.3:
+                    impact_level = "Moderate"
+                else:
+                    impact_level = "Low"
+                news_impact.append({
+                    "headline": headline,
+                    "sentiment": sentiment,
+                    "sentiment_score": score,
+                    "impact_level": impact_level
+                })
+
+        # Positive & Negative Factors
         positive_factors = _identify_positive_factors(ebm_output, sentiments)
         negative_factors = _identify_negative_factors(ebm_output, sentiments)
-        if positive_factors:
-            lines.append(f"   → Main strengths: {', '.join(positive_factors[:3])}")
-        if negative_factors:
-            lines.append(f"   → Key concerns: {', '.join(negative_factors[:3])}")
-        lines.append("")
 
-        # 9. Technical Information
-        lines.append("Analysis Details")
-        lines.append(f"   Machine Learning Model: Explainable Boosting Machine")
-        lines.append(f"   Sentiment Analysis: FinBERT Financial Language Model")
-        lines.append(f"   Score Fusion: Dynamic Weighting Algorithm")
-        lines.append(f"   News Articles Analyzed: {unstructured_result.get('articles_analyzed', 0)}")
-        lines.append(f"   Financial Metrics Used: {len(structured_features)}")
-        lines.append("")
+        # Final JSON Report
+        report = {
+            "company": company_name,
+            "final_score": round(final_score, 2),
+            "credit_grade": credit_grade,
+            "assessment_date": datetime.datetime.now().strftime('%Y-%m-%d'),
+            "data_sources": ["Structured Analysis (EBM)", "News Sentiment (FinBERT)", "Market Indicators", "Fusion Algorithm"],
+            "component_analysis": {
+                "structured_score": round(structured_score, 2),
+                "unstructured_score": round(unstructured_score, 2),
+                "weights": {
+                    "structured_expert": struct_weight,
+                    "news_sentiment_expert": news_weight
+                }
+            },
+            "market_conditions": {
+                "status": market_status,
+                "alpha": alpha,
+                "vix": vix,
+                "regime": market_regime
+            },
+            "top_financial_drivers": top_financial_factors,
+            "news_impact": news_impact,
+            "risk_summary": {
+                "risk_level": risk_level,
+                "description": risk_desc
+            },
+            "key_insights": {
+                "market_influence": "stable" if alpha > threshold else "volatile",
+                "strengths": positive_factors[:3],
+                "concerns": negative_factors[:3]
+            },
+            "technical_details": {
+                "ml_model": "Explainable Boosting Machine",
+                "sentiment_model": "FinBERT",
+                "fusion_method": "Dynamic Weighting",
+                "articles_analyzed": unstructured_result.get('articles_analyzed', 0),
+                "financial_metrics_used": len(structured_features)
+            },
+            "generated_timestamp": datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        }
 
-        # Timestamp
-        lines.append(f"Report generated on: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        return "\n".join(lines)
+        return report
 
     except Exception as e:
-        logger.error(f"Error generating comprehensive explainability report: {e}")
-        return f"Error generating explainability report for {company_name}: {str(e)}"
+        logger.error(f"Error generating explainability report: {e}")
+        return {"error": f"Error generating explainability report for {company_name}: {str(e)}"}
 
 def _calculate_volatility_factor(market_conditions: Dict[str, Any]) -> float:
     """Calculate volatility factor (alpha) from market conditions"""
@@ -1111,84 +1019,117 @@ class NewsExplainabilityEngine:
             'data_sufficiency': 'Sufficient' if articles_count >= 10 else 'Limited' if articles_count >= 5 else 'Insufficient'
         }
 
-    def _generate_comprehensive_explanation(self, news_assessment: Dict[str, Any],
-                                          sentiment_analysis: Dict[str, Any],
-                                          risk_factor_analysis: Dict[str, Any],
-                                          temporal_analysis: Dict[str, Any],
-                                          confidence_analysis: Dict[str, Any]) -> str:
-        """Generate the main comprehensive explanation text"""
+
+    def _generate_comprehensive_explanation(
+        self,
+        news_assessment: Dict[str, Any],
+        sentiment_analysis: Dict[str, Any],
+        risk_factor_analysis: Dict[str, Any],
+        temporal_analysis: Dict[str, Any],
+        confidence_analysis: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Generate the main comprehensive explanation as structured JSON"""
+
         risk_score = news_assessment.get('risk_score', 50)
         company = news_assessment.get('company', 'the company')
 
-        explanation = []
-        explanation.append(f"🔍 NEWS SENTIMENT RISK ANALYSIS")
-        explanation.append(f"Risk Score: {risk_score:.1f}/100 ({self._categorize_risk_level(risk_score)})")
-        explanation.append("")
-        explanation.append("📊 EXECUTIVE SUMMARY:")
+        # Determine risk category based on score
         if risk_score < 30:
-            explanation.append(f"News sentiment indicates LOW RISK for {company}. Recent coverage is predominantly positive with minimal risk indicators.")
+            risk_category = "LOW RISK"
+            summary_text = f"News sentiment indicates LOW RISK for {company}. Recent coverage is predominantly positive with minimal risk indicators."
         elif risk_score < 50:
-            explanation.append(f"News sentiment indicates MODERATE-LOW RISK for {company}. Mixed sentiment with some areas of concern.")
+            risk_category = "MODERATE-LOW RISK"
+            summary_text = f"News sentiment indicates MODERATE-LOW RISK for {company}. Mixed sentiment with some areas of concern."
         elif risk_score < 70:
-            explanation.append(f"News sentiment indicates MODERATE-HIGH RISK for {company}. Notable negative sentiment and risk factors present.")
+            risk_category = "MODERATE-HIGH RISK"
+            summary_text = f"News sentiment indicates MODERATE-HIGH RISK for {company}. Notable negative sentiment and risk factors present."
         else:
-            explanation.append(f"News sentiment indicates HIGH RISK for {company}. Predominantly negative coverage with significant risk indicators.")
-        explanation.append("")
-        explanation.append("📈 SENTIMENT BREAKDOWN:")
-        dist = sentiment_analysis['distribution']
-        explanation.append(f"• Positive articles: {dist.get('positive', 0):.1f}%")
-        explanation.append(f"• Neutral articles: {dist.get('neutral', 0):.1f}%")
-        explanation.append(f"• Negative articles: {dist.get('negative', 0):.1f}%")
-        explanation.append(f"• Overall sentiment: {sentiment_analysis['overall_sentiment'].replace('_', ' ').title()}")
-        explanation.append("")
+            risk_category = "HIGH RISK"
+            summary_text = f"News sentiment indicates HIGH RISK for {company}. Predominantly negative coverage with significant risk indicators."
 
-        if risk_factor_analysis['primary_concerns']:
-            explanation.append("⚠️ PRIMARY RISK FACTORS:")
+        # Sentiment distribution
+        sentiment_distribution = {
+            "positive": sentiment_analysis['distribution'].get('positive', 0),
+            "neutral": sentiment_analysis['distribution'].get('neutral', 0),
+            "negative": sentiment_analysis['distribution'].get('negative', 0),
+            "overall_sentiment": sentiment_analysis['overall_sentiment']
+        }
+
+        # Primary concerns
+        primary_concerns = []
+        if risk_factor_analysis.get('primary_concerns'):
             for concern in risk_factor_analysis['primary_concerns']:
-                explanation.append(f"• {concern['name']}: {concern['mentions']} mentions")
-                explanation.append(f"  Impact: {concern['impact']}")
-            explanation.append("")
+                primary_concerns.append({
+                    "name": concern['name'],
+                    "mentions": concern['mentions'],
+                    "impact": concern['impact']
+                })
 
-        explanation.append("📅 TEMPORAL ANALYSIS:")
-        explanation.append(f"• Trend direction: {temporal_analysis['trend_direction']}")
-        explanation.append(f"• Impact: {temporal_analysis['impact_assessment']}")
-        explanation.append("")
+        # Temporal analysis
+        temporal_data = {
+            "trend_direction": temporal_analysis['trend_direction'],
+            "impact_assessment": temporal_analysis['impact_assessment']
+        }
 
-        if 'sample_headlines' in news_assessment and news_assessment['sample_headlines']:
-            explanation.append("📰 SAMPLE HEADLINES:")
+        # Sample headlines (if available)
+        sample_headlines = []
+        if news_assessment.get('sample_headlines'):
             for i, headline in enumerate(news_assessment['sample_headlines'][:3], 1):
-                # Add a simple "days ago" calculation (you could enhance this with actual dates)
-                days_ago = f"{i + 1} days ago"  # Placeholder - you can calculate actual days from timestamps
-                explanation.append(f"{i}. {headline}")
-                explanation.append(f"   Published: ~{days_ago}")
-                explanation.append("")
-        else:
-            explanation.append("No recent news articles found for analysis")
-        explanation.append("")
+                sample_headlines.append({
+                    "headline": headline,
+                    "approx_published": f"{i + 1} days ago"  # placeholder
+                })
 
-        explanation.append("🎯 CONFIDENCE ASSESSMENT:")
-        explanation.append(f"• Overall confidence: {confidence_analysis['overall_confidence']:.1%} ({confidence_analysis['confidence_level']})")
-        explanation.append(f"• Data sufficiency: {confidence_analysis['data_sufficiency']}")
-        return "\n".join(explanation)
+        # Confidence assessment
+        confidence = {
+            "overall_confidence": confidence_analysis['overall_confidence'],
+            "confidence_level": confidence_analysis['confidence_level'],
+            "data_sufficiency": confidence_analysis['data_sufficiency']
+        }
 
-    def _generate_actionable_insights(self, risk_score: float,
-                                    sentiment_analysis: Dict[str, Any],
-                                    risk_factor_analysis: Dict[str, Any]) -> List[str]:
-        """Generate actionable insights based on the analysis"""
-        insights = []
+        # Final structured response
+        return {
+            "company": company,
+            "risk_score": round(risk_score, 2),
+            "risk_category": risk_category,
+            "summary": summary_text,
+            "sentiment_breakdown": sentiment_distribution,
+            "primary_risk_factors": primary_concerns,
+            "temporal_analysis": temporal_data,
+            "sample_headlines": sample_headlines,
+            "confidence_assessment": confidence
+    }
+    def _generate_actionable_insights(
+    self,
+    risk_score: float,
+    sentiment_analysis: Dict[str, Any],
+    risk_factor_analysis: Dict[str, Any]
+) -> Dict[str, Any]:
+        """Generate actionable insights in machine-readable format"""
+    
         if risk_score > 70:
-            insights.append("🚨 HIGH PRIORITY: Monitor for immediate developments that could affect liquidity or operations")
+            priority = "HIGH"
+            recommendation = "Monitor for immediate developments that could affect liquidity or operations"
         elif risk_score > 50:
-            insights.append("⚠️ MODERATE PRIORITY: Watch for trend continuation and specific risk factor developments")
+            priority = "MEDIUM"
+            recommendation = "Watch for trend continuation and specific risk factor developments"
         else:
-            insights.append("✅ LOW PRIORITY: Maintain standard monitoring protocols")
+            priority = "LOW"
+            recommendation = "Maintain standard monitoring protocols"
 
+        top_concern = None
         primary_concerns = risk_factor_analysis.get('primary_concerns', [])
         if primary_concerns:
-            top_concern = primary_concerns[0]
-            insights.append(f"🎯 Focus monitoring on: {top_concern['name']} ({top_concern['mentions']} mentions)")
+            top_concern = {
+                "focus_area": primary_concerns[0]['name'],
+                "mentions": primary_concerns[0]['mentions']
+            }
 
-        return insights
+        return {
+            "priority_level": priority,
+            "recommendation": recommendation,
+            "focus_area": top_concern
+        }
 
     def _assess_data_quality(self, news_assessment: Dict[str, Any]) -> Dict[str, str]:
         """Assess the quality and reliability of the underlying data"""
@@ -1317,14 +1258,20 @@ def explain_unstructured_score(unstructured_result: Dict[str, Any], company_name
             'error': str(e),
             'company': company_name
         }
+from typing import Dict, Any
 
-def explain_fusion(fusion_result: Dict[str, Any], structured_result: Dict[str, Any],
-                  unstructured_result: Dict[str, Any], company_name: str) -> Dict[str, Any]:
+def explain_fusion(
+    fusion_result: Dict[str, Any],
+    structured_result: Dict[str, Any],
+    unstructured_result: Dict[str, Any],
+    company_name: str
+) -> Dict[str, Any]:
     """
-    Generate explanation for the fusion process and final score.
+    Generate a machine-readable explanation for the fusion process and final score.
     """
     try:
         logger.info(f"🔄 Generating fusion explanation for {company_name}")
+
         final_score = fusion_result.get('fused_score', 50.0)
         expert_agreement = fusion_result.get('expert_agreement', 0.5)
         market_regime = fusion_result.get('market_regime', 'NORMAL')
@@ -1332,64 +1279,48 @@ def explain_fusion(fusion_result: Dict[str, Any], structured_result: Dict[str, A
         expert_contributions = fusion_result.get('expert_contributions', {})
         regime_adjustment = fusion_result.get('regime_adjustment', 0.0)
 
-        explanation_lines = []
-        explanation_lines.append(f"MAESTRO FUSION ANALYSIS FOR {company_name.upper()}")
-        explanation_lines.append("=" * 60)
-        explanation_lines.append("")
-        explanation_lines.append(f"FINAL FUSED RISK SCORE: {final_score:.1f}/100")
-        explanation_lines.append(f"Expert Agreement Level: {expert_agreement:.1%}")
-        explanation_lines.append(f"Market Regime: {market_regime}")
-        explanation_lines.append("")
-        explanation_lines.append("EXPERT CONTRIBUTIONS:")
-        explanation_lines.append("-" * 30)
+        # Build structured JSON response
+        structured_response = {
+            "company": company_name,
+            "fusion_analysis": {
+                "final_score": round(final_score, 2),
+                "expert_agreement": expert_agreement,
+                "market_regime": market_regime,
+                "regime_adjustment": regime_adjustment,
+                "fusion_method": "Dynamic Weighted Fusion",
+                "methodology": "Dynamic weighted fusion with market condition adjustments"
+            },
+            "experts": {}
+        }
 
+        # Add structured expert details
         if 'structured_expert' in expert_contributions:
             struct_contrib = expert_contributions['structured_expert']
-            struct_weight = dynamic_weights.get('structured_expert', 0.5) * 100 # Default to 0.5
-            explanation_lines.append(f"Structured Analysis (EBM):")
-            explanation_lines.append(f"  Score: {struct_contrib.get('score', struct_contrib.get('risk_score', 0)):.1f}/100") # Use 'score' or fallback
-            explanation_lines.append(f"  Weight: {struct_weight:.1%}")
-            explanation_lines.append(f"  Contribution: {struct_contrib.get('contribution', 0):.1f} points")
-            explanation_lines.append("")
+            structured_response["experts"]["structured_analysis"] = {
+                "score": struct_contrib.get('score', struct_contrib.get('risk_score', 0)),
+                "weight": dynamic_weights.get('structured_expert', 0.5),
+                "contribution_points": struct_contrib.get('contribution', 0)
+            }
 
         if 'news_sentiment_expert' in expert_contributions:
             news_contrib = expert_contributions['news_sentiment_expert']
-            news_weight = dynamic_weights.get('news_sentiment_expert', 0.5) * 100 # Default to 0.5
-            explanation_lines.append(f"News Sentiment Analysis:")
-            explanation_lines.append(f"  Score: {news_contrib.get('score', news_contrib.get('risk_score', 0)):.1f}/100") # Use 'score' or fallback
-            explanation_lines.append(f"  Weight: {news_weight:.1%}")
-            explanation_lines.append(f"  Contribution: {news_contrib.get('contribution', 0):.1f} points")
-            explanation_lines.append("")
-
-        if regime_adjustment != 0:
-            explanation_lines.append(f"MARKET REGIME ADJUSTMENT:")
-            explanation_lines.append(f"  Adjustment: {regime_adjustment:+.1f} points")
-            explanation_lines.append("")
-
-        explanation_lines.append("FUSION METHODOLOGY:")
-        explanation_lines.append("MAESTRO (Multi-Agent Explainable Adaptive STructured-Textual Risk Oracle)")
-        explanation_lines.append("Dynamic weighted fusion with market condition adjustments")
-        fusion_explanation = "\n".join(explanation_lines)
+            structured_response["experts"]["news_sentiment_analysis"] = {
+                "score": news_contrib.get('score', news_contrib.get('risk_score', 0)),
+                "weight": dynamic_weights.get('news_sentiment_expert', 0.5),
+                "contribution_points": news_contrib.get('contribution', 0)
+            }
 
         logger.info(f"✅ Fusion explanation generated for {company_name}")
-        return {
-            'explanation': fusion_explanation,
-            'final_score': final_score,
-            'expert_agreement': expert_agreement,
-            'market_regime': market_regime,
-            'dynamic_weights': dynamic_weights,
-            'expert_contributions': expert_contributions,
-            'regime_adjustment': regime_adjustment,
-            'fusion_method': 'MAESTRO Dynamic Weighted Fusion',
-            'explanation_type': 'Fusion Analysis',
-            'company': company_name
-        }
+        return structured_response
+
     except Exception as e:
         logger.error(f"Error generating fusion explanation for {company_name}: {e}")
         return {
-            'explanation': f"Error generating fusion explanation for {company_name}: {str(e)}",
-            'final_score': fusion_result.get('fused_score', 50.0),
-            'explanation_type': 'Error',
-            'error': str(e),
-            'company': company_name
+            "company": company_name,
+            "fusion_analysis": {
+                "final_score": fusion_result.get('fused_score', 50.0),
+                "fusion_method": "MAESTRO Dynamic Weighted Fusion",
+                "error": str(e)
+            },
+            "status": "error"
         }

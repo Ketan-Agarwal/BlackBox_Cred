@@ -3,17 +3,16 @@ import numpy as np
 from collections import Counter
 import datetime
 import logging
-from neon_db_interface import NeonDBInterface
-from data_collection import collect_all_data, fetch_historical_news_data
-from data_processing import process_collected_data
-from structured_analysis import compute_structured_score
-from unstructured_analysis import compute_unstructured_score, analyze_article_sentiment, analyze_risk_factors
-from fusion_engine import fuse_scores
-from explainability import explain_structured_score, explain_unstructured_score, explain_fusion, generate_comprehensive_explainability_report
+from pipeline.data_collection import collect_all_data, fetch_historical_news_data
+from pipeline.data_processing import process_collected_data
+from pipeline.structured_analysis import compute_structured_score
+from pipeline.unstructured_analysis import compute_unstructured_score, analyze_article_sentiment, analyze_risk_factors
+from pipeline.fusion_engine import fuse_scores
+from pipeline.explainability import explain_structured_score, explain_unstructured_score, explain_fusion, generate_comprehensive_explainability_report
 
 logger = logging.getLogger(__name__)
 
-def run_credit_pipeline_with_db_cache(company_name, ticker, fred_api_key=None, days_back=7, max_articles=20, db_interface=None):
+def run_credit_pipeline_with_db_cache(company_name, ticker, fred_api_key=None, days_back=7, max_articles=20):
     """
     Enhanced pipeline with DB cache and historical backfill logic.
     db_interface: object with methods get_latest_record(ticker), save_report(ticker, report_json, timestamp)
@@ -28,21 +27,6 @@ def run_credit_pipeline_with_db_cache(company_name, ticker, fred_api_key=None, d
        - Add comprehensive explainability report to final JSON
     """
     today = datetime.date.today()
-    
-    # 1. Check DB for recent record (less than 6 hours ago)
-    logger.info(f"🔍 Checking database cache for {ticker}...")
-    if db_interface is not None:
-        record = db_interface.get_latest_record(ticker)
-        if record:
-            record_time = record.get('timestamp')
-            if record_time:
-                record_dt = datetime.datetime.fromisoformat(record_time)
-                hours_diff = (datetime.datetime.now() - record_dt).total_seconds() / 3600
-                if hours_diff < 6:
-                    logger.info(f"✅ Found recent cached data ({hours_diff:.1f} hours old) - returning cached result")
-                    return record['report']
-                else:
-                    logger.info(f"⏰ Cached data is {hours_diff:.1f} hours old (>6h) - running fresh analysis")
 
     # 2. No recent cache found - run fresh analysis
     logger.info(f"� Running fresh credit analysis pipeline for {company_name}...")
@@ -54,7 +38,7 @@ def run_credit_pipeline_with_db_cache(company_name, ticker, fred_api_key=None, d
         ticker=ticker, 
         rating_date=today,
         fred_api_key=fred_api_key,
-        news_days_back=28  # We'll fetch 28 days of news once
+        news_days_back=28
     )
     
     # Process structured data
@@ -253,8 +237,6 @@ def run_credit_pipeline_with_db_cache(company_name, ticker, fred_api_key=None, d
 
     # === STEP 4: GENERATE EXPLAINABILITY ONLY FOR TODAY ===
     logger.info("🔍 Step 4: Generating explainability for today's scores...")
-    struct_expl = explain_structured_score(struct_features, company_name=company_name)
-    unstruct_expl = explain_unstructured_score(today_results['unstructured_assessment'], company_name=company_name)
     fusion_expl = explain_fusion(
         today_results['fusion_result'], 
         today_results['structured_assessment'], 
@@ -314,150 +296,7 @@ def run_credit_pipeline_with_db_cache(company_name, ticker, fred_api_key=None, d
         'historical_scores_detailed': historical_scores
     }
 
-    # Save to database if available
-    if db_interface is not None:
-        logger.info("💾 Saving report to database...")
-        # Use full timestamp (date and time)
-        now_timestamp = datetime.datetime.now().isoformat()
-        db_interface.save_report(ticker, json.dumps(report, default=str), now_timestamp)
-        logger.info(f"✅ Report saved to database successfully with timestamp {now_timestamp}")
-
-    logger.info(f"🎉 Credit pipeline completed for {company_name}! Final Score: {today_results['final_score']:.1f}, Grade: {today_results['credit_grade']}")
     return report
-
-
-#def run_credit_pipeline(company_name, ticker, rating_date, fred_api_key=None, days_back=7, max_articles=20):
-    """
-    Execute the complete credit pipeline following the architecture diagram:
-    1. Data Collection (Yahoo Finance + FRED + News APIs)
-    2. Data Processing (Clean & Feature Engineering) 
-    3. Structured Analysis (Financial Ratios + Z-Score + KMV + EBM)
-    4. Unstructured Analysis (News Sentiment + FinBERT)
-    5. Dynamic Fusion (VIX-based weighting)
-    6. Explainability (Interpretable results)
-    """
-    
-    logger.info(f"=== STARTING CREDIT PIPELINE FOR {company_name} ===")
-    
-    # === STEP 1: DATA COLLECTION ===
-    # This aligns with the "Data Collection Pipeline" section in architecture
-    logger.info("Step 1: Data Collection from APIs...")
-    collected_data = collect_all_data(
-        company_name=company_name,
-        ticker=ticker, 
-        rating_date=rating_date,
-        fred_api_key=fred_api_key,
-        news_days_back=days_back
-    )
-    
-    # === STEP 2: DATA PROCESSING ===  
-    # This aligns with "Data Storage & Processing" section in architecture
-    logger.info("Step 2: Data Processing & Feature Engineering...")
-    processed_data = process_collected_data(collected_data)
-    
-    # === STEP 3: STRUCTURED ANALYSIS ===
-    # This aligns with "Engine 1: Structured Analysis" in architecture
-    logger.info("Step 3: Structured Analysis (Financial Ratios + Z-Score + KMV + EBM)...")
-    
-    # Use the combined structured features (financials + macro)
-    struct_features = processed_data['combined_structured_features']
-    structured_score, structured_assessment = compute_structured_score(struct_features)
-    
-    # === STEP 4: UNSTRUCTURED ANALYSIS ===
-    # This aligns with "Engine 2: News Sentiment Analysis" in architecture
-    logger.info("Step 4: Unstructured Analysis (News Sentiment + FinBERT)...")
-    news_28d = collected_data.get('news_articles', [])
-    unstructured_score, unstructured_assessment = compute_unstructured_score(
-        company_name, days_back=days_back, max_articles=max_articles, articles=news_28d
-    )
-    
-    # === STEP 5: DYNAMIC FUSION ===
-    # This aligns with "Dynamic Fusion & Results" section in architecture
-    logger.info("Step 5: Dynamic Fusion with VIX-based weighting...")
-    
-    # Extract market conditions from processed macro features
-    macro_features = processed_data.get('macro_features', {})
-    market_conditions = {
-        'vix': macro_features.get('vix', 20.0),
-        'unemployment_rate': macro_features.get('unemployment_rate', 4.0), 
-        'credit_spread': macro_features.get('credit_spread_high_yield', 2.0),
-        'yield_curve_slope': macro_features.get('yield_curve_slope', 1.0),
-        'economic_stress_index': _calculate_economic_stress_index(macro_features),
-        'financial_conditions_index': _calculate_financial_conditions_index(macro_features),
-        'regime': _determine_market_regime(macro_features)
-    }
-    
-    # Create proper assessment formats for fusion using the fusion engine
-    structured_assessment_for_fusion = {
-        'risk_score': structured_score,
-        'confidence': structured_assessment.get('confidence', 0.8),
-        'details': structured_assessment
-    }
-
-    unstructured_assessment_for_fusion = {
-        'risk_score': unstructured_score,
-        'confidence': unstructured_assessment.get('confidence', 0.5),
-        'details': unstructured_assessment
-    }
-    
-    # Use the proper fusion engine
-    fusion_result = fuse_scores(structured_assessment_for_fusion, unstructured_assessment_for_fusion, market_conditions)
-    
-    # === STEP 6: EXPLAINABILITY ===
-    # This aligns with "Explainability & Audit" section in architecture
-    logger.info("Step 6: Generating Explainability Reports...")
-    
-    struct_expl = explain_structured_score(struct_features, company_name=company_name)
-    unstruct_expl = explain_unstructured_score(unstructured_assessment, company_name=company_name)
-    fusion_expl = explain_fusion(fusion_result, structured_assessment_for_fusion, unstructured_assessment_for_fusion, company_name=company_name)
-    
-    # === STEP 7: FINAL OUTPUT ===
-    final_score = fusion_result['fused_score']
-    credit_grade = _score_to_credit_grade(final_score)
-    
-    logger.info(f"Pipeline complete! Final Score: {final_score:.1f}, Grade: {credit_grade}")
-    
-    # Generate comprehensive explainability report (teammate's format integrated)
-    comprehensive_report = generate_comprehensive_explainability_report(
-        company_name=company_name,
-        final_score=final_score,
-        credit_grade=credit_grade,
-        structured_result=structured_assessment,
-        unstructured_result=unstructured_assessment,
-        fusion_result=fusion_result,
-        market_conditions=market_conditions,
-        structured_features=struct_features
-    )
-    
-    return {
-        'company': company_name,
-        'ticker': ticker,
-        'rating_date': rating_date,
-        'structured_score': structured_score,
-        'unstructured_score': unstructured_score,
-        'final_score': final_score,
-        'credit_grade': credit_grade,
-        'explanations': {
-            'structured': struct_expl,
-            'unstructured': unstruct_expl,
-            'fusion': fusion_expl
-        },
-        'comprehensive_report': comprehensive_report,
-        'details': {
-            'collected_data_summary': {
-                'yahoo_finance': 'Available' if collected_data.get('yahoo_finance_data') is not None else 'Missing',
-                'fred_macro': 'Available' if collected_data.get('fred_macro_data') is not None and not collected_data.get('fred_macro_data').empty else 'Missing', 
-                'news_articles': len(collected_data.get('news_articles', []))
-            },
-            'processed_features': {
-                'structured_features': len(struct_features),
-                'macro_features': len(macro_features),
-                'processed_news': len(processed_data.get('processed_news', []))
-            },
-            'market_conditions': market_conditions,
-            'fusion_metadata': fusion_result
-        }
-    }
 
 def _calculate_economic_stress_index(macro_features):
     """Calculate economic stress index from macro indicators"""
