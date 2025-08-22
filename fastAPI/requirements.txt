@@ -12,3 +12,4 @@ torch==2.8.0
 yfinance==0.2.65
 transformers==4.55.2
 uvicorn
+psycopg2
