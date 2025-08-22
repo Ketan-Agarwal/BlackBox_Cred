@@ -28,7 +28,7 @@ export default function SearchPage() {
     const timeout = setTimeout(() => {
       if (query.length > 1 && shouldSearch) {
         setLoadingSearch(true);
-        fetch(`http://localhost:8000/search-ticker?q=${encodeURIComponent(query)}`)
+        fetch(`/api/search-ticker?q=${encodeURIComponent(query)}`)
           .then((res) => res.json())
           .then((data) => {
             setResults(data.results || []);
@@ -52,7 +52,7 @@ export default function SearchPage() {
     setLoadingAnalyze(true);
     setAnalysis(null);
     try {
-      const res = await fetch("http://localhost:8000/analyze-and-wait", {
+      const res = await fetch("/api/analyze-and-wait", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ company_name: query, ticker }),

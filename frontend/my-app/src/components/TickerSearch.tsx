@@ -11,7 +11,7 @@ export default function TickerSearch({ onSelect }: { onSelect: (ticker: string) 
     const timeout = setTimeout(() => {
       if (query.length > 1) {
         setLoading(true);
-        fetch(`http://localhost:8000/search-ticker?q=${encodeURIComponent(query)}`)
+        fetch(`/api/search-ticker?q=${encodeURIComponent(query)}`)
           .then((res) => res.json())
           .then((data) => {
             // Your FastAPI response: { results: [{ ticker, name }, ...] }
