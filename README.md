@@ -137,7 +137,7 @@ $$
 ```
 FastAPI Service
      ↓
-Rate Limiting → Authentication → Request Validation → Processing
+Request Validation → Processing
      ↑
 Response Caching
 ```
@@ -146,14 +146,6 @@ Response Caching
 
 ```
 BlackBox_Cred/
-├── BlackBox_Backend/              # Core, intelligent analytics engine
-│   ├── api_main.py                # Main API endpoints
-│   ├── neon_db_interface.py       # Database interface
-│   └── __pycache__/               # Python cache files
-│
-├── credtech_backend/              # Additional backend components
-│   └── explainability_layer.py    # Explainability module
-│
 ├── fastAPI/                       # API service
 │   ├── Dockerfile                 # Container configuration
 │   ├── requirements.txt           # Dependencies
@@ -242,12 +234,12 @@ psql -d blackbox_cred -f schema.sql
 3. **API Keys Configuration**
 ```bash
 # Create .env file
-cp .env.example .env
 
 # Add your API keys
 FRED_API_KEY=your_fred_key
 FINNHUB_API_KEY=your_finnhub_key
-NEON_DSN=your_neon_connection_string
+NEWS_API_KEY=news_api_key
+DATABASE_URL=your_database_url
 ```
 
 ### API Layer Setup
@@ -273,6 +265,10 @@ npm install
 
 # Development server
 npm run dev
+
+# .env file
+
+NEXT_PUBLIC_BACKEND_URL=backend_url || http://localhost:8000
 
 # Production build
 npm run build
