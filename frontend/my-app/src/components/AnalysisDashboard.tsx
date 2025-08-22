@@ -164,8 +164,18 @@ interface AnalysisDashboardProps {
 
 export default function AnalysisDashboard({ payload }: AnalysisDashboardProps) {
   // parse the nested JSON string `payload.report`
-  const parsed: RootReport = useMemo(() => JSON.parse(payload.report), [payload.report]);
-  const { company_info, explainability_report, historical_scores_detailed } = parsed;
+  const parsed: RootReport = useMemo(() => {
+  if (typeof payload.report === "string") {
+    try {
+      return JSON.parse(payload.report);
+    } catch (e) {
+      console.error("Failed to parse report:", e);
+      return {} as RootReport;
+    }
+  }
+  return payload.report as RootReport; // If it's already an object
+}, [payload.report]);
+const { company_info, explainability_report, historical_scores_detailed } = parsed;
 
   // Dark mode toggle (local)
   const [dark, setDark] = useState<boolean>(false);

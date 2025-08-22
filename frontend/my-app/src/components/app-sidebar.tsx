@@ -24,17 +24,7 @@ const items = [
     title: "Search",
     url: "search",
     icon: Search,
-  },
-  {
-    title: "Alerts Center",
-    url: "alerts",
-    icon: Inbox,
-  },
-  {
-    title: "Settings",
-    url: "settings",
-    icon: Settings,
-  },
+  }
 ]
 
 export function AppSidebar() {

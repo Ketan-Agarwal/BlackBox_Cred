@@ -138,15 +138,46 @@ def get_latest_analyses(limit: int = 5, db: Session = Depends(get_db)):
                     report_data = {}
 
             response.append({
-                "id": str(a.id),
-                "ticker": a.ticker,
-                "company_name": a.company,
-                "created_at": a.created_at.isoformat() if a.created_at else None,
-                "score": report_data.get("explainability_report", {}).get("final_score"),
-                "grade": report_data.get("company_info", {}).get("credit_grade")
-            })
+    "id": str(a.id),
+    "ticker": a.ticker,
+    "company": a.company,
+    "created_at": a.created_at.isoformat(),
+    "score": report_data.get("explainability_report", {}).get("final_score"),
+    "grade": report_data.get("company_info", {}).get("credit_grade")
+})
+
 
         return {"analyses": response}
 
     except Exception as e:
         return {"error": str(e)}
+
+
+
+@app.get("/analyses/{analysis_id}")
+def get_analysis(analysis_id: str, db: Session = Depends(get_db)):
+    try:
+        analysis = db.query(Analysis).filter(Analysis.id == analysis_id).first()
+        
+        if not analysis:
+            raise HTTPException(status_code=404, detail="Analysis not found")
+
+        # Parse report as dict if stored as JSON string
+        report_data = {}
+        if analysis.report:
+            try:
+                report_data = (
+                    analysis.report if isinstance(analysis.report, dict) else json.loads(analysis.report)
+                )
+            except:
+                report_data = {}
+
+        return {
+            "id": str(analysis.id),
+            "ticker": analysis.ticker,
+            "company_name": analysis.company.name,
+            "created_at": analysis.created_at.isoformat(),
+            "report": report_data
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
