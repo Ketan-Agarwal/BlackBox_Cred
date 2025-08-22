@@ -128,7 +128,15 @@ def get_latest_analyses(limit: int = 5, db: Session = Depends(get_db)):
 
         response = []
         for a in analyses:
-            report_data = a.report if isinstance(a.report, dict) else {}
+            if isinstance(a.report, str):
+                try:
+                    report_data = json.loads(a.report)
+                except json.JSONDecodeError:
+                    report_data = {}
+            elif isinstance(a.report, dict):
+                report_data = a.report
+            else:
+                report_data = {}
 
             response.append({
                 "id": str(a.id),
