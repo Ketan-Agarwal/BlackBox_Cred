@@ -2,8 +2,6 @@
 
 BlackBox Cred is an advanced credit risk assessment platform that combines structured financial data, unstructured news data, and macroeconomic indicators to provide comprehensive and explainable credit scores for companies.
 
-To use the app press: https://black-box-cred.vercel.app/
-
 Here’s a visual overview of of our Pileline:
 
 ![Project Pipeline](ModelArchitecture_BlackBox.svg)
