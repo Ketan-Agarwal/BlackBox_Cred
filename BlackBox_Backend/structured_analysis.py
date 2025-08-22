@@ -9,9 +9,11 @@ import pickle
 import pandas as pd
 import numpy as np
 from typing import Dict, Any, Tuple
-
+import os
+from dotenv import load_dotenv
 logger = logging.getLogger(__name__)
-
+load_dotenv()
+MODEL_PATH = os.getenv("MODEL_PATH")
 def compute_structured_score(processed_features: Dict[str, Any]) -> Tuple[float, Dict[str, Any]]:
     """
     Compute structured score using trained EBM model.
@@ -21,7 +23,6 @@ def compute_structured_score(processed_features: Dict[str, Any]) -> Tuple[float,
     try:
         logger.info("Computing structured score...")
         # Load the model
-        MODEL_PATH = r"C:\Users\asus\Documents\GitHub\BlackBox_Cred\BlackBox_Backend\model\ebm_model_struct_score.pkl"
         with open(MODEL_PATH, 'rb') as f:
             model_data = pickle.load(f)
         ebm_model = model_data['model']

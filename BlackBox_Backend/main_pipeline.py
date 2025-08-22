@@ -326,7 +326,7 @@ def run_credit_pipeline_with_db_cache(company_name, ticker, fred_api_key=None, d
     return report
 
 
-def run_credit_pipeline(company_name, ticker, rating_date, fred_api_key=None, days_back=7, max_articles=20):
+#def run_credit_pipeline(company_name, ticker, rating_date, fred_api_key=None, days_back=7, max_articles=20):
     """
     Execute the complete credit pipeline following the architecture diagram:
     1. Data Collection (Yahoo Finance + FRED + News APIs)

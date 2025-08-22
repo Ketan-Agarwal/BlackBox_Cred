@@ -15,9 +15,10 @@ import datetime
 # Note: interpret is not imported here anymore as the main functions don't use it directly.
 # The EBMExplainer class handles its own import and usage.
 logger = logging.getLogger(__name__)
-
+from dotenv import load_dotenv
+load_dotenv()
 # === INTEGRATED COMPREHENSIVE EXPLAINABILITY REPORT ===
-
+MODEL_PATH = os.getenv("MODEL_PATH")
 def generate_comprehensive_explainability_report(
     company_name: str,
     final_score: float,
@@ -1245,7 +1246,6 @@ def explain_structured_score(processed_features: Dict[str, Any], company_name: s
     """
     try:
         logger.info(f"📊 Generating structured explanation for {company_name}")
-        MODEL_PATH = r"C:\Users\asus\Documents\GitHub\BlackBox_Cred\BlackBox_Backend\model\ebm_model_struct_score.pkl"
         explainer = EBMExplainer(MODEL_PATH)
         explanation_result = explainer.explain_single_prediction(processed_features, company_name)
         logger.info(f"✅ Structured explanation generated for {company_name}")

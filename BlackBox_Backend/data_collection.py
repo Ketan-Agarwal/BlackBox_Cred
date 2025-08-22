@@ -16,13 +16,15 @@ import time
 import logging
 from datetime import timedelta
 import warnings
-
+import os
+from dotenv import load_dotenv
+load_dotenv()
 warnings.filterwarnings('ignore')
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # === CONFIGURATION ===
-NEWS_API_KEY = "9ab5e737f4d345508eb83b0fb4f0a9cc"
+NEWS_API_KEY = os.getenv("NEWS_API_KEY")
 NEWS_API_BASE_URL = "https://newsapi.org/v2/everything"  # Fixed: removed trailing spaces
 
 # === YAHOO FINANCE API DATA COLLECTION ===
