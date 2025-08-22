@@ -7,7 +7,7 @@ Here’s a visual overview of of our Pileline:
 ![Project Pipeline](ModelArchitecture_BlackBox.svg)
 
 
-##  Core Features & Capabilities
+##  Core Features 
 
 ### 1. Multi-Source Data Integration
 - **Financial Data**: Balance sheets, income statements, cash flows from Yahoo Finance
@@ -15,21 +15,44 @@ Here’s a visual overview of of our Pileline:
 - **Macro Indicators**: Interest rates, GDP growth, unemployment from FRED
 - **News & Sentiment**: Real-time news analysis and sentiment scoring
 
-### 2. Advanced Risk Models
+### 2. Custom Feature Engineering
 - **Enhanced Z-Score Model**
   - Modified Altman Z-score with dynamic weights
   - Incorporates market-based indicators
   - Sector-specific adjustments
+
+
+    $$
+\text{Enhanced Z} = 1.5X_1 + 1.6X_2 + 3.5X_3 + 0.8X_4 + 1.2X_5
+$$
+
+**Where:**  
+- **X₁** = Dynamic Liquidity Stress Index  
+- **X₂** = Multi-Period Earnings Quality Score  
+- **X₃** = Risk-Adjusted Operational Performance  
+- **X₄** = Multi-Dimensional Solvency Score  
+- **X₅** = Asset Efficiency Index  
+
+**Scaled to 0-10.**
+
   
 - **KMV Distance-to-Default**
   - Option-theoretic approach to default prediction
   - Market-based asset volatility estimation
   - Dynamic default barrier calculation
+
+$$
+D = \frac{\ln\left(\frac{A}{DP}\right) + \left(\mu - \frac{\sigma^2}{2}\right)T}{\sigma \sqrt{T}}
+$$
+
+**Where:**  
+- **A** = Equity Value + Debt Value  
+- **DP** = Short-Term Debt + 0.5 × Long-Term Debt  
+- **σ** = Volatility · leverage-adjusted  
+- **T** = 1 yr  
+
+**Output clamped to:**[-5, 10]
   
-- **News Sentiment Impact**
-  - FinBERT-based sentiment analysis
-  - Event impact assessment
-  - Temporal decay modeling
 
 ### 3. Explainable AI Components
 - Feature importance visualization
@@ -37,47 +60,76 @@ Here’s a visual overview of of our Pileline:
 - Interactive scenario testing
 - Confidence interval estimations
 
-##  System Architecture
+### 4. Caching
+- Query results are stored in Neon Postgres for fast access
+- Automatic cache check on "analyze-and-wait" endpoint of fastAPI
+- Instant retrieval from cache for entries fresher than six hours
+- Run full pipeline and refresh cache when entry is expired
 
-- **Multi-dimensional Analysis**
-  - Structured financial data analysis
-  - Unstructured news sentiment analysis
-  - Macroeconomic factor integration
+
+### 5. Scoring Engines
+
+- **Structured Data**
   
-- **Advanced Risk Models**
-  - Enhanced Z-Score calculation
-  - KMV Distance-to-Default model
-  - News sentiment impact analysis
-  
-- **Real-time Processing**
-  - Live company search
-  - Instant credit score calculations
-  - Dynamic data updates
+  - ### **EBM – Explainable Boosting Machine**
+    - Uses metrics including KMV Distance-to-Default, Enhanced Z-Score and additional proprietary measures.
+    - Interpretable additive model  
+    - Glass-box additive learner: keeps full interpretability while still fitting non-linear, high-order patterns  
+    - **Feature Set:** 34 numeric inputs  
+    - **Probability of Investment Grade** scaled to get a score between 0 and 100
 
-- **Explainable AI**
-  - Transparent scoring methodology
-  - Feature importance visualization
-  - Risk factor breakdown
+- **Unstructured Data**
+  - ### **FinBERT Sentiment Pass**
+    - Infers positive, negative, and neutral scores per article  
 
-### Data Layer
-```
-Raw Data Sources → Data Collection → Preprocessing → Feature Engineering
-     ↓               (Real-time)      (Cleaning)      (Ratio calc)
-   NeonDB  ←-------- Caching --------→ API Layer
-```
+  - ### **Risk-Keyword Booster**
+    - Regex lists for liquidity crisis, debt distress, operational and market risks  
+    - Each hit adds **3 pts**; capped at **+25**  
+    - **Final score:**
+      
+$$
+100 - \left[50\left(1 - \texttt{avgNetSentiment}\right) + \min\left(\texttt{riskKeywords}\times 3\, 25\right)\right]
+$$
 
-### Processing Layer
-```
-Structured Analysis    Unstructured Analysis    Macro Analysis
-      ↓                      ↓                      ↓
-      -----------------------------------------------
-                             ↓
-                    Fusion Engine (Weighted)
-                             ↓
-                       Score Generation
-                             ↓
-                     Explainability Layer
-```
+
+### 6. Fusion System
+- ### **Two-Expert Weighted Combination**
+  - Structured Credit Score + Unstructured Credit Score → single fused score.
+
+
+
+- ### **Market Regime Classification**
+  - VIX > 30 → **VOLATILE**  
+  - VIX > 25 + negative trend → **BEAR**  
+  - VIX < 15 + positive trend → **BULL**  
+  - Everything else → **NORMAL**
+
+
+
+- ### **Dynamic Weight Adjustments**
+  - **VOLATILE:** Structured weight ×1.2, News weight ×0.9  
+  - **BEAR:** News weight ×1.3 (sentiment matters more)
+
+
+
+- ### **Expert Agreement Calculation**
+  - Takes both expert scores (structured and unstructured), calculates coefficient of variation.  
+  - If agreement < 30%, system favors structured expert by +10%.
+
+
+
+- ### **Regime-Based Risk Adjustment**
+  - Base adjustment based on Market Context:  
+    - **BEAR:** -10  
+    - **VOLATILE:** -7  
+    - **BULL:** +5  
+    - **NORMAL:** 0  
+  - Points added based on current market regime.  
+  - **Disagreement Amplifier:**
+
+$$
+\text{Base adjustment} \times \big[ 1 + (\text{disagreement} \times 0.5) \big]
+$$
 
 ### API Layer
 ```
@@ -88,32 +140,73 @@ Rate Limiting → Authentication → Request Validation → Processing
 Response Caching
 ```
 
-##  Project Structure
+##  Project Structure <to be changed>
 
 ```
 BlackBox_Cred/
-├── BlackBox_Backend/        # Core analytics engine
-│   ├── api_main.py         # Main API endpoints
-│   ├── data_collection.py  # Data gathering
-│   ├── data_processing.py  # Feature engineering
-│   ├── explainability.py   # Score explanation
-│   ├── fusion_engine.py    # Data fusion
-│   ├── main_pipeline.py    # Processing orchestration
-│   └── model/             # Trained models
+├── BlackBox_Backend/              # Core, intelligent analytics engine
+│   ├── api_main.py                # Main API endpoints
+│   ├── neon_db_interface.py       # Database interface
+│   └── __pycache__/               # Python cache files
 │
-├── fastAPI/                # API service
+├── credtech_backend/              # Additional backend components
+│   └── explainability_layer.py    # Explainability module
+│
+├── fastAPI/                       # API service
+│   ├── Dockerfile                 # Container configuration
+│   ├── requirements.txt           # Dependencies
 │   └── app/
-│       ├── main.py        # API initialization
-│       ├── routes/        # API endpoints
-│       └── models.py      # Data models
+│       ├── alembic.ini            # Database migrations config
+│       ├── crud.py                # Database operations
+│       ├── db.py                  # Database setup
+│       ├── dependencies.py        # API dependencies
+│       ├── main.py                # API initialization
+│       ├── models.py              # Data models
+│       ├── scoring.py             # Scoring logic
+│       ├── migrations/            # Database migrations
+│       ├── pipeline/              # Core processing pipeline
+│       │   ├── data_collection.py # Data collection module
+│       │   ├── data_processing.py # Data processing logic
+│       │   ├── explainability.py  # Explainability utilities
+│       │   ├── fusion_engine.py   # Fusion engine
+│       │   ├── main_pipeline.py   # Orchestrating pipeline
+│       │   ├── structured_analysis.py   # Structured data analysis
+│       │   ├── unstructured_analysis.py # Unstructured data analysis
+│       │   └── model/             # Trained models
+│       │       └── ebm_model_struct_score.pkl # Pre-trained scoring model
+│       └── routes/                # API endpoints
+│           └── scores.py          # Scoring endpoint
 │
-└── frontend/              # Web interface
+└── frontend/                      # Web interface
     └── my-app/
-        ├── src/
-        │   ├── app/      # Next.js pages
-        │   ├── components/# UI components
-        │   └── lib/      # Utilities
-        └── public/       # Static assets
+        ├── components.json        # Component configuration
+        ├── next.config.ts         # Next.js configuration
+        ├── package.json           # Project dependencies
+        ├── postcss.config.mjs     # PostCSS configuration
+        ├── tsconfig.json          # TypeScript configuration
+        ├── public/                # Static assets
+        │   ├── file.svg           # SVG asset
+        │   ├── globe.svg          # SVG asset
+        │   ├── mock-report.json   # Mock report data
+        │   ├── next.svg           # SVG asset
+        │   ├── vercel.svg         # SVG asset
+        │   └── window.svg         # SVG asset
+        └── src/
+            ├── app/               # Next.js pages
+            │   ├── globals.css    # Global styles
+            │   ├── layout.tsx     # Layout configuration
+            │   ├── page.tsx       # Main landing page
+            │   └── search/
+            │       └── page.tsx   # Search page
+            ├── components/        # UI components
+            │   ├── AnalysisDashboard.tsx # Dashboard view
+            │   ├── app-sidebar.tsx       # Sidebar component
+            │   ├── TickerSearch.tsx      # Search bar
+            │   └── ui/                   # Reusable UI components
+            ├── hooks/             # Custom React hooks
+            │   └── use-mobile.ts  # Mobile hook
+            └── lib/               # Utility functions
+                └── utils.ts       # Helper utilities
 ```
 
 ##  Local Development Setup
@@ -183,116 +276,3 @@ npm run dev
 npm run build
 npm start
 ```
-
-##  Model Comparisons & Tradeoffs
-
-### Model Performance
-
-| Model Component        | Accuracy | Speed | Explainability | Data Requirements |
-|-----------------------|----------|-------|----------------|-------------------|
-| Enhanced Z-Score      | 75-80%   | Fast  | High          | Medium           |
-| KMV Model            | 80-85%   | Medium   | Medium        | High             |
-| News Sentiment       | 70-75%   | Slow  | Low           | Low              |
-| Combined Model       | 85-90%   | Medium   | High          | High             |
-
-### Key Tradeoffs
-
-1. **Accuracy vs. Speed**
-   - Enhanced Z-Score: Fastest but less accurate
-   - KMV: Better accuracy but requires more data
-   - Combined: Best accuracy but slower processing
-
-2. **Real-time vs. Batch Processing**
-   - Real-time updates for critical changes
-   - Batch processing for detailed analysis
-   - Configurable update frequencies
-
-3. **Data Quality vs. Coverage**
-   - Strict data validation can reduce coverage
-   - Flexible validation increases coverage but may reduce accuracy
-   - Configurable thresholds per use case
-
-4. **Model Complexity vs. Explainability**
-   - Simpler models are more explainable
-   - Complex models may be more accurate
-   - Hybrid approach balances both
-
-##  Project Workflow
-
-### 1. Data Collection (`data_collection.py`)
-- Fetches financial data from Yahoo Finance API
-- Retrieves macroeconomic indicators from FRED API
-- Collects news articles and sentiment data
-- Stores raw data in NeonDB for caching
-
-### 2. Data Processing (`data_processing.py`)
-- Cleans and preprocesses raw financial data
-- Calculates financial ratios and metrics
-- Processes macroeconomic indicators
-- Prepares news articles for sentiment analysis
-
-### 3. Structured Analysis (`structured_analysis.py`)
-- Computes Enhanced Z-Score
-- Calculates KMV Distance-to-Default
-- Generates structured risk metrics
-- Evaluates financial health indicators
-- **Models**: 
-  - Modified Altman Z-Score with dynamic weights
-  - Merton KMV model with adaptive volatility
-  - Gradient Boosting for ratio importance
-  - Sector-specific regression models
-
-### 4. Unstructured Analysis (`unstructured_analysis.py`)
-- Performs sentiment analysis on news articles
-- Extracts relevant risk factors from news
-- Calculates news sentiment scores
-- Identifies key risk indicators from text
-- **Models**:
-  - FinBERT for financial sentiment analysis
-  - Named Entity Recognition (NER) for risk factor extraction
-  - LSTM for temporal sentiment patterns
-  - Topic modeling (LDA) for news categorization
-
-### 5. Data Fusion (`fusion_engine.py`)
-- Combines structured and unstructured scores
-- Weights different risk components
-- Integrates macroeconomic factors
-- Produces unified risk assessment
-- **Models**:
-  - Neural Network for feature fusion
-  - Random Forest for weight optimization
-  - Bayesian Network for risk propagation
-  - XGBoost for final score calibration
-
-### 6. Score Generation (`main_pipeline.py`)
-- Orchestrates the entire scoring process
-- Validates input data quality
-- Ensures scoring consistency
-- Generates final credit score
-- **Models**:
-  - Ensemble model for score aggregation
-  - Calibration models for score normalization
-  - Time series models for trend analysis
-
-### 7. Explainability Layer (`explainability.py`)
-- Provides feature importance analysis
-- Generates risk factor breakdown
-- Creates score explanations
-- Produces visual risk insights
-- **Models**:
-  - SHAP (SHapley Additive exPlanations)
-  - LIME for local interpretability
-  - Feature attribution models
-  - Custom visualization algorithms
-
-### 8. API Service (`api_main.py`)
-- Handles incoming analysis requests
-- Manages asynchronous processing
-- Returns structured responses
-- Provides real-time updates
-- **Models**: 
-  - Request validation models
-  - Rate limiting algorithms
-  - Caching optimization models
-
-
