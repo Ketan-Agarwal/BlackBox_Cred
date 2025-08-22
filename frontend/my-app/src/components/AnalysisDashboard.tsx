@@ -239,7 +239,7 @@ export default function AnalysisDashboard({ payload }: AnalysisDashboardProps) {
               </Badge>
             </h1>
             <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-              Assessment time: {explainability_report.assessment_date}
+              Assessment time: {new Date(payload.created_at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })} IST
             </p>
           </div>
         </div>
