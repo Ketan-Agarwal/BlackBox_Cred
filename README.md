@@ -4,7 +4,7 @@ BlackBox Cred is an advanced credit risk assessment platform that combines struc
 
 Here’s a visual overview of of our Pileline:
 
-![Project Pipeline](Pipeline.svg)
+![Project Pipeline](ModelArchitecture_BlackBox.svg)
 
 
 ##  Core Features & Capabilities
