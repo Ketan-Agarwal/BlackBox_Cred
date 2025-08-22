@@ -87,9 +87,9 @@ export default function SearchPage() {
         )}
         {shouldSearch && results.length > 0 && (
           <ul className="absolute z-10 bg-white border rounded shadow mt-1 w-full max-h-60 overflow-y-auto">
-            {results.map((item) => (
+            {results.map((item, index) => (
               <li
-                key={item.ticker}
+                key={`${item.ticker}-${index}`}
                 className="p-3 hover:bg-gray-100 cursor-pointer"
                 onClick={() => {
                   setQuery(item.name);
@@ -106,17 +106,22 @@ export default function SearchPage() {
       </div>
 
       {/* Analyze Button */}
-      <div className="flex justify-center mb-6">
-        <Button onClick={handleAnalyze} disabled={loadingAnalyze}>
-          {loadingAnalyze ? (
-            <>
-              <Loader2 className="animate-spin h-4 w-4 mr-2" /> Analyzing...
-            </>
-          ) : (
-            "Analyze"
-          )}
-        </Button>
-      </div>
+<div className="flex flex-col items-center mb-6">
+  <Button onClick={handleAnalyze} disabled={loadingAnalyze}>
+    {loadingAnalyze ? (
+      <>
+        <Loader2 className="animate-spin h-4 w-4 mr-2" /> Analyzing...
+      </>
+    ) : (
+      "Analyze"
+    )}
+  </Button>
+
+  {/* Info message (always visible) */}
+  <p className={`mt-2 text-sm ${loadingAnalyze ? "text-gray-600" : "hidden"}`}>
+    This may take around 10 seconds to complete.
+  </p>
+</div>
 
       {error && <p className="text-red-500 text-center mb-4">{error}</p>}
 

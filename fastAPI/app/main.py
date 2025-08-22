@@ -89,8 +89,7 @@ def analyze_and_wait(request: AnalysisRequest, db: Session = Depends(get_db)):
 
         entry = Analysis(
             ticker=request.ticker,
-            company_name=request.company_name,
-            report=json.dumps(report),  # Ensure JSON is stored as string
+            report=report,  # Ensure JSON is stored as string
         )
         db.add(entry)
         db.commit()
@@ -117,7 +116,6 @@ def search_ticker(q: str = Query(..., min_length=1)):
 
     return {"results": results[:10]}  # limit to 10
 
-
 @app.get("/analyses/latest")
 def get_latest_analyses(limit: int = 5, db: Session = Depends(get_db)):
     try:
@@ -130,22 +128,19 @@ def get_latest_analyses(limit: int = 5, db: Session = Depends(get_db)):
 
         response = []
         for a in analyses:
-            report_data = {}
-            if a.report:
-                try:
-                    report_data = json.loads(a.report)
-                except json.JSONDecodeError:
-                    report_data = {}
+            report_data = a.report if isinstance(a.report, dict) else {}
 
             response.append({
-    "id": str(a.id),
-    "ticker": a.ticker,
-    "company": a.company,
-    "created_at": a.created_at.isoformat(),
-    "score": report_data.get("explainability_report", {}).get("final_score"),
-    "grade": report_data.get("company_info", {}).get("credit_grade")
-})
-
+                "id": str(a.id),
+                "ticker": a.ticker,
+                "company": {
+                    "name": a.company.name if a.company else None,
+                    "ticker": a.ticker
+                },
+                "created_at": a.created_at.isoformat() if a.created_at else None,
+                "score": report_data.get("explainability_report", {}).get("final_score"),
+                "grade": report_data.get("company_info", {}).get("credit_grade")
+            })
 
         return {"analyses": response}
 

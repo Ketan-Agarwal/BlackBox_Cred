@@ -175,6 +175,7 @@ export default function AnalysisDashboard({ payload }: AnalysisDashboardProps) {
   }
   return payload.report as RootReport; // If it's already an object
 }, [payload.report]);
+
 const { company_info, explainability_report, historical_scores_detailed } = parsed;
 
   // Dark mode toggle (local)
