@@ -1,9 +1,7 @@
-
-
 """
 fusion_engine.py
 
-Fusion engine for risk scoring.
+Fusion engine for credit scoring.
 Self-contained implementation without external dependencies.
 """
 
@@ -35,10 +33,10 @@ class GlobalFusion:
         }
         
         self.market_regimes = {
-            'BULL': {'risk_adjustment': -5, 'volatility_threshold': 0.15},
-            'BEAR': {'risk_adjustment': +10, 'volatility_threshold': 0.25},
-            'VOLATILE': {'risk_adjustment': +7, 'volatility_threshold': 0.30},
-            'NORMAL': {'risk_adjustment': 0, 'volatility_threshold': 0.20}
+            'BULL': {'credit_adjustment': +5, 'volatility_threshold': 0.15},
+            'BEAR': {'credit_adjustment': -10, 'volatility_threshold': 0.25},
+            'VOLATILE': {'credit_adjustment': -7, 'volatility_threshold': 0.30},
+            'NORMAL': {'credit_adjustment': 0, 'volatility_threshold': 0.20}
         }
         
         self.fusion_history = []
@@ -72,21 +70,21 @@ class GlobalFusion:
         """
         Calculate agreement level between expert assessments
         """
-        risk_scores = []
+        credit_scores = []
         
         for expert_name, assessment in expert_assessments.items():
-            if 'risk_score' in assessment:
-                risk_scores.append(assessment['risk_score'])
+            if 'credit_score' in assessment:
+                credit_scores.append(assessment['credit_score'])
         
-        if len(risk_scores) < 2:
+        if len(credit_scores) < 2:
             return 0.5  # Neutral agreement when insufficient data
         
         # Calculate coefficient of variation (lower = higher agreement)
-        mean_score = statistics.mean(risk_scores)
+        mean_score = statistics.mean(credit_scores)
         if mean_score == 0:
             return 1.0
             
-        std_dev = statistics.stdev(risk_scores) if len(risk_scores) > 1 else 0
+        std_dev = statistics.stdev(credit_scores) if len(credit_scores) > 1 else 0
         cv = std_dev / mean_score
         
         # Convert to agreement score (0 to 1, higher = better agreement)
@@ -150,7 +148,7 @@ class GlobalFusion:
         Calculate market regime-based adjustment to the fused score
         """
         regime_info = self.market_regimes.get(market_regime, self.market_regimes['NORMAL'])
-        base_adjustment = regime_info['risk_adjustment']
+        base_adjustment = regime_info['credit_adjustment']
         
         # Scale adjustment based on expert agreement
         # Lower agreement = larger adjustment (more uncertainty)
@@ -201,14 +199,14 @@ class GlobalFusion:
         for expert_name, assessment in expert_assessments.items():
             if expert_name in dynamic_weights:
                 weight = dynamic_weights[expert_name]
-                risk_score = assessment.get('risk_score', 50)
+                credit_score = assessment.get('credit_score', 50)
                 
-                contribution = weight * risk_score
+                contribution = weight * credit_score
                 weighted_score += contribution
                 total_weight += weight
                 
                 expert_contributions[expert_name] = {
-                    'risk_score': risk_score,
+                    'credit_score': credit_score,
                     'weight': weight,
                     'contribution': contribution,
                     'confidence': assessment.get('confidence', 0.5)
@@ -265,10 +263,10 @@ class GlobalFusion:
                                expert_agreement: float) -> str:
         """Generate a human-readable summary of the fusion result"""
         
-        risk_level = "HIGH" if final_score > 70 else "MODERATE" if final_score > 40 else "LOW"
+        credit_level = "HIGH" if final_score > 70 else "MODERATE" if final_score > 40 else "LOW"
         agreement_level = "HIGH" if expert_agreement > 0.7 else "MODERATE" if expert_agreement > 0.4 else "LOW"
         
-        summary = f"Fusion Result: {risk_level} risk (score: {final_score:.1f}/100) "
+        summary = f"Fusion Result: {credit_level} creditworthiness (score: {final_score:.1f}/100) "
         summary += f"with {agreement_level} expert agreement ({expert_agreement:.1%}) "
         summary += f"under {market_regime} market conditions."
         
@@ -310,7 +308,7 @@ class GlobalFusion:
         explanation.append("Expert Contributions:")
         for expert, contrib in fusion_result.get('expert_contributions', {}).items():
             explanation.append(f"  {expert}:")
-            explanation.append(f"    Score: {contrib['risk_score']:.1f}")
+            explanation.append(f"    Score: {contrib['credit_score']:.1f}")
             explanation.append(f"    Weight: {contrib['weight']:.1%}")
             explanation.append(f"    Contribution: {contrib['contribution']:.1f}")
         
@@ -343,26 +341,26 @@ def fuse_scores(structured_result: Dict[str, Any], unstructured_result: Dict[str
         expert_assessments = {}
         
         # Add structured expert
-        if structured_result and ('structured_score' in structured_result or 'risk_score' in structured_result):
-            risk_score = structured_result.get('structured_score', structured_result.get('risk_score', 50.0))
+        if structured_result and ('structured_score' in structured_result or 'credit_score' in structured_result):
+            credit_score = structured_result.get('structured_score', structured_result.get('credit_score', 50.0))
             expert_assessments['structured_expert'] = {
-                'risk_score': risk_score,
+                'credit_score': credit_score,
                 'confidence': structured_result.get('confidence', 0.8),  # EBM typically high confidence
                 'assessment_type': 'structured',
                 'details': structured_result
             }
-            logger.info(f"📊 Structured expert: {risk_score:.1f}")
+            logger.info(f"📊 Structured expert: {credit_score:.1f}")
         
         # Add news sentiment expert
-        if unstructured_result and ('unstructured_score' in unstructured_result or 'risk_score' in unstructured_result):
-            risk_score = unstructured_result.get('unstructured_score', unstructured_result.get('risk_score', 50.0))
+        if unstructured_result and ('unstructured_score' in unstructured_result or 'credit_score' in unstructured_result):
+            credit_score = unstructured_result.get('unstructured_score', unstructured_result.get('credit_score', 50.0))
             expert_assessments['news_sentiment_expert'] = {
-                'risk_score': risk_score,
+                'credit_score': credit_score,
                 'confidence': unstructured_result.get('confidence', 0.6),
                 'assessment_type': 'unstructured',
                 'details': unstructured_result
             }
-            logger.info(f"📰 News sentiment expert: {risk_score:.1f}")
+            logger.info(f"📰 News sentiment expert: {credit_score:.1f}")
         
         if not expert_assessments:
             logger.warning("No valid expert assessments for fusion")
