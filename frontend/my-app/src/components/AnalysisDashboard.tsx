@@ -239,7 +239,7 @@ export default function AnalysisDashboard({ payload }: AnalysisDashboardProps) {
               </Badge>
             </h1>
             <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-              Assessment date: {explainability_report.assessment_date}
+              Assessment time: {explainability_report.assessment_date}
             </p>
           </div>
         </div>
@@ -489,7 +489,7 @@ export default function AnalysisDashboard({ payload }: AnalysisDashboardProps) {
           transition={{ duration: 0.4 }}
           className="text-center text-xs text-slate-500 dark:text-slate-400"
         >
-          Generated at: {new Date(payload.created_at).toLocaleString()} • Ticker: {payload.ticker}
+          Generated at: {new Date(payload.created_at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })} IST • Ticker: {payload.ticker}
         </motion.div>
       </div>
     </div>
