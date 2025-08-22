@@ -117,7 +117,7 @@ def search_ticker(q: str = Query(..., min_length=1)):
     return {"results": results[:10]}  # limit to 10
 
 @app.get("/analyses/latest")
-def get_latest_analyses(limit: int = 5, db: Session = Depends(get_db)):
+def get_latest_analyses(limit: int = 9, db: Session = Depends(get_db)):
     try:
         analyses = (
             db.query(Analysis)

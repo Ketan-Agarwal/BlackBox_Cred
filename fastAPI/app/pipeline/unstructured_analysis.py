@@ -216,7 +216,7 @@ def compute_unstructured_score(company_name: str, days_back: int = 7, max_articl
         risk_keyword_count = len(all_risk_keywords)
         risk_boost = min(risk_keyword_count * 3, 25)  # Max 25 point boost
         # Step 5: Final score calculation
-        unstructured_score = 100 -(base_sentiment_score + risk_boost)
+        unstructured_score = (base_sentiment_score + risk_boost)
         unstructured_score = max(0, min(100, unstructured_score))
         # Step 6: Calculate confidence
         if sentiment_results:
